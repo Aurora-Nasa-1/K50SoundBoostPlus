@@ -422,14 +422,13 @@ ui_print "Aurora Module installed successfully!"
 EOF
     
     # Add script imports
-    if [ "$add_log" = "true" ]; then
-        sed -i '3i\. $MODPATH/Logsystem.sh' "$MODULE_DIR/customize.sh"
-        [ -f "$PROJECT_ROOT/build/Logsystem.sh" ] && cp "$PROJECT_ROOT/build/Logsystem.sh" "$MODULE_DIR/"
-    fi
-    
     if [ "$add_aurora" = "true" ]; then
         sed -i '3i\. $MODPATH/AuroraCore.sh' "$MODULE_DIR/customize.sh"
         [ -f "$PROJECT_ROOT/build/AuroraCore.sh" ] && cp "$PROJECT_ROOT/build/AuroraCore.sh" "$MODULE_DIR/"
+    fi
+    if [ "$add_log" = "true" ]; then
+        sed -i '3i\. $MODPATH/Logsystem.sh' "$MODULE_DIR/customize.sh"
+        [ -f "$PROJECT_ROOT/build/Logsystem.sh" ] && cp "$PROJECT_ROOT/build/Logsystem.sh" "$MODULE_DIR/"
     fi
     if [ "$default_SCRIPT" = "true" ] && [ -f "$MODULE_DIR/DEFAULT_INSTALL.sh" ]; then
         echo "source $MODULE_DIR/DEFAULT_INSTALL.sh" >> "$MODULE_DIR/customize.sh"
