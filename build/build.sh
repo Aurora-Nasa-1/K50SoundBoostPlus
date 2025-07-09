@@ -1,5 +1,5 @@
 #!/bin/bash
-# Aurora Module Build Script - Simplified Version
+# Aurora Module Build Script
 set -euo pipefail
 
 # Configuration
@@ -180,13 +180,49 @@ EOF
     fi
 }
 
+# Get version with Git tag sync support
+get_module_version() {
+    local sync_with_tag=$(read_bool '.build.version_sync.sync_with_git_tag')
+    local tag_prefix=$(read_json '.build.version_sync.tag_prefix' 'v')
+    local fallback_version=$(read_json '.build.module_properties.module_version' '1.0.0')
+    local config_version=$(read_json '.build.module_properties.module_version' '1.0.0')
+    
+    if [ "$sync_with_tag" = "true" ]; then
+        # Try to get version from Git tag
+        local git_tag=""
+        if command -v git >/dev/null 2>&1 && [ -d "$PROJECT_ROOT/.git" ]; then
+            # Get the latest tag that matches the prefix
+            git_tag=$(git describe --tags --abbrev=0 --match="${tag_prefix}*" 2>/dev/null || echo "")
+            
+            if [ -n "$git_tag" ]; then
+                # Remove prefix from tag to get version
+                local version=$(echo "$git_tag" | sed "s/^${tag_prefix}//")
+                info "Using version from Git tag: $git_tag -> $version"
+                echo "$version"
+                return
+            else
+                warn "No Git tag found with prefix '$tag_prefix', using fallback version: $fallback_version"
+                echo "$fallback_version"
+                return
+            fi
+        else
+            warn "Git not available or not in a Git repository, using fallback version: $fallback_version"
+            echo "$fallback_version"
+            return
+        fi
+    else
+        # Use version from configuration
+        echo "$config_version"
+    fi
+}
+
 # Create module.prop
 create_module_prop() {
     info "Creating module.prop..."
     
     local name=$(read_json '.build.module_properties.module_name' 'AuroraModule')
-    local version=$(read_json '.build.module_properties.module_version' '1.0.0')
-    local versioncode=$(read_json '.build.module_properties.module_versioncode' '1')
+    local version=$(get_module_version)
+    local versioncode=$(date +"%Y%m%d")
     local author=$(read_json '.build.module_properties.module_author' 'Aurora')
     local description=$(read_json '.build.module_properties.module_description' 'Aurora Module')
     local update_json=$(read_json '.build.module_properties.updateJson' '')

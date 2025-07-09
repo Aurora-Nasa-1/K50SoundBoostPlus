@@ -9,7 +9,7 @@
   "build_module": true,
   "build": {
     "build_type": "Release",
-    "Github_update_repo": "your_name/your_repo",
+    "Github_update_repo": "Aurora-Nasa-1/K50SoundBoostPlus",
     
     "architectures": ["arm64-v8a", "x86_64"],
     "package_mode": "single_zip",
@@ -27,12 +27,16 @@
 
     "rewrite_module_properties": true,
     "module_properties": {
-      "module_name": "AuroraModule",
-      "module_version": "1.0.1",
-      "module_versioncode": 1,
-      "module_author": "Aurora",
-      "module_description": "Aurora Module",
-      "updateJson": "httpURL"
+      "module_name": "K50SoundBoostPlus",
+      "module_version": "2.0.0",
+      "module_author": "酷安@Simlalsy，酷安@Aurora星空_Z",
+      "module_description": "降低音频延迟，提升音质，提升音频表现力",
+      "updateJson": "https://raw.githubusercontent.com/Aurora-Nasa-1/K50SoundBoostPlus/main/update.json"
+    },
+
+    "version_sync": {
+      "sync_with_git_tag": true,
+      "tag_prefix": "v"
     },
 
     "custom_build_script": false,
