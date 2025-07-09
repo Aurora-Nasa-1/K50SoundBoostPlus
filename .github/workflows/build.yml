@@ -74,10 +74,10 @@ jobs:
         fi
         case "$package_mode" in
         "single_zip")
-        ADD-TEXT="multi-arch"
+        ADD_TEXT="multi-arch"
         ;;
         "separate_zip")
-        ADD-TEXT="arm64-v8a"
+        ADD_TEXT="arm64-v8a"
         ;;
         esac
         # Create update.json
@@ -85,7 +85,7 @@ jobs:
         {
           "version": "${VERSION}",
           "versionCode": "${CURRENT_TIME}",
-          "zipUrl": "https://github.com/${Github_update_repo}/releases/download/${LATEST_TAG}/${action_name}-${LATEST_TAG}-${ADD-TEXT}.zip",
+          "zipUrl": "https://github.com/${Github_update_repo}/releases/download/${LATEST_TAG}/${action_name}-${LATEST_TAG}-${ADD_TEXT}.zip",
           "changelog": "https://github.com/${Github_update_repo}/releases/tag/${LATEST_TAG}"
         }
         EOF
