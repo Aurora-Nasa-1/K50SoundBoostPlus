@@ -195,18 +195,18 @@ get_module_version() {
             git_tag=$(git describe --tags --abbrev=0 --match="${tag_prefix}*" 2>/dev/null || echo "")
             
             if [ -n "$git_tag" ]; then
-                # Remove prefix from tag to get version
-                local version=$(echo "$git_tag" | sed "s/^${tag_prefix}//")
-                info "Using version from Git tag: $git_tag -> $version"
+            local version=$(echo "$git_tag" | sed "s/^${tag_prefix}//")
+                # Log to stderr to avoid contaminating the return value
+                info "Using version from Git tag: $git_tag -> $version" >&2
                 echo "$version"
                 return
             else
-                warn "No Git tag found with prefix '$tag_prefix', using fallback version: $fallback_version"
+                warn "No Git tag found with prefix '$tag_prefix', using fallback version: $fallback_version" >&2
                 echo "$fallback_version"
                 return
             fi
         else
-            warn "Git not available or not in a Git repository, using fallback version: $fallback_version"
+            warn "Git not available or not in a Git repository, using fallback version: $fallback_version" >&2
             echo "$fallback_version"
             return
         fi
