@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="K50SoundBoostPlus WebUI - 模块管理界面" />
+    <meta name="theme-color" content="#6750a4" />
+    <title>K50SoundBoostPlus WebUI</title>
+    <script type="module" crossorigin src="assets/js/main-CQLp2XMv.js"></script>
+    <link rel="stylesheet" crossorigin href="assets/css/main-DqzktWDV.css">
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <div class="header-content">
+          <h1 id="page-title">K50SoundBoostPlus WebUI</h1>
+          <div class="header-actions">
+            <div id="page-actions" class="page-actions"></div>
+            <div id="system-buttons" class="system-buttons">
+              <button id="language-button" class="icon-button" title="语言">
+                <span class="material-symbols-rounded">language</span>
+              </button>
+              <button id="theme-toggle" class="icon-button" title="主题">
+                <span class="material-symbols-rounded">light_mode</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <main id="main-content"></main>
+      <nav id="app-nav" class="app-nav"></nav>
+      <div id="language-selector" class="language-selector">
+        <div class="language-selector-content">
+          <div class="language-selector-header">
+            <h3 data-i18n="SELECT_LANGUAGE">选择语言</h3>
+          </div>
+          <div id="language-options" class="language-options"></div>
+          <div class="language-selector-footer">
+            <button id="cancel-language" data-i18n="CANCEL">取消</button>
+          </div>
+        </div>
+      </div>
+      <div id="toast-container" class="toast-container"></div>
+      <div id="prerender-cache" style="display: none"></div>
+    </div>
+  </body>
+</html>
