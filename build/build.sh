@@ -195,7 +195,8 @@ get_module_version() {
             git_tag=$(git describe --tags --abbrev=0 --match="${tag_prefix}*" 2>/dev/null || echo "")
             
             if [ -n "$git_tag" ]; then
-            local version=$(echo "$git_tag" | sed "s/^${tag_prefix}//")
+                # Remove prefix from tag to get version
+                local version=$(echo "$git_tag" | sed "s/^${tag_prefix}//")
                 # Log to stderr to avoid contaminating the return value
                 info "Using version from Git tag: $git_tag -> $version" >&2
                 echo "$version"
@@ -375,10 +376,7 @@ ui_print "Build Type: \$BUILD_TYPE"
 ui_print "Device Architecture: \$ARCH (\$BUILD_ARCH)"
 ui_print "Package Mode: \$PACKAGE_MODE"
 
-# Set basic permissions
-set_perm_recursive \$MODPATH 0 0 0755 0644
-
-# Handle binary installation with simplified architecture processing
+# Handle binary installation with simplified architecture processing (MUST be first)
 if [ -d "\$MODPATH/bin" ]; then
     # Check if this is a multi-architecture package
     local has_suffixed_binaries=false
@@ -418,16 +416,19 @@ else
     ui_print "No binary directory found, skipping binary setup"
 fi
 
+# Set basic permissions for module files
+set_perm_recursive \$MODPATH 0 0 0755 0644
+
 ui_print "Aurora Module installed successfully!"
 EOF
     
-    # Add script imports
+    # Add script imports (after binary processing)
     if [ "$add_aurora" = "true" ]; then
-        sed -i '3i\. $MODPATH/AuroraCore.sh' "$MODULE_DIR/customize.sh"
+        sed -i '/^ui_print "Aurora Module installed successfully!"/i\. $MODPATH/AuroraCore.sh' "$MODULE_DIR/customize.sh"
         [ -f "$PROJECT_ROOT/build/AuroraCore.sh" ] && cp "$PROJECT_ROOT/build/AuroraCore.sh" "$MODULE_DIR/"
     fi
     if [ "$add_log" = "true" ]; then
-        sed -i '3i\. $MODPATH/Logsystem.sh' "$MODULE_DIR/customize.sh"
+        sed -i '/^ui_print "Aurora Module installed successfully!"/i\. $MODPATH/Logsystem.sh' "$MODULE_DIR/customize.sh"
         [ -f "$PROJECT_ROOT/build/Logsystem.sh" ] && cp "$PROJECT_ROOT/build/Logsystem.sh" "$MODULE_DIR/"
     fi
     if [ "$default_SCRIPT" = "true" ] && [ -f "$MODULE_DIR/DEFAULT_INSTALL.sh" ]; then
@@ -454,12 +455,12 @@ run_custom_script() {
 # Package module
 package_module() {
     info "Packaging Magisk module..."
-    
+    cp -r "$PROJECT_ROOT/module/"* "$MODULE_DIR/"
+    rm "$MODULE_DIR/settings.json"
     local name=$(read_json '.build.module_properties.module_name' 'AuroraModule')
     local version=$(get_module_version)
     local package_mode=$(read_json '.build.package_mode' 'single_zip')
-    cp -r "$PROJECT_ROOT/module/"* "$MODULE_DIR/"
-    rm "$MODULE_DIR/settings.json"
+    
     case "$package_mode" in
         "single_zip")
             # Single zip with all architectures (with suffixes)
