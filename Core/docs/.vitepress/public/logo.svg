@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <!-- 定义渐变 -->
+  <defs>
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7B1FA2" />
+      <stop offset="100%" stop-color="#6200EA" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 3D 立方体 (45度角包围核心) -->
+  <g stroke="url(#primaryGradient)" stroke-width="8" fill="none">
+    <!-- 立方体前面 -->
+    <path d="M120 60 L180 90 L180 150 L120 180 L60 150 L60 90 Z" />
+    
+    <!-- 立方体顶部连接线 -->
+    <path d="M120 60 L150 30" />
+    <path d="M180 90 L210 60" />
+    
+    <!-- 立方体右侧连接线 -->
+    <path d="M180 150 L210 120" />
+    
+    <!-- 立方体顶部面 -->
+    <path d="M150 30 L210 60 L180 90" stroke-opacity="0.8" />
+    
+    <!-- 立方体右侧面 -->
+    <path d="M210 60 L210 120 L180 150" stroke-opacity="0.8" />
+  </g>
+  
+  <!-- 核心圆形 -->
+  <circle cx="120" cy="120" r="30" stroke="url(#primaryGradient)" stroke-width="8" fill="none" />
+  
+  <!-- 右上方的扳手 -->
+  <g transform="translate(160, 60) rotate(45)" stroke="url(#primaryGradient)" stroke-width="8" stroke-linecap="round" fill="none">
+    <!-- 扳手头部 -->
+    <path d="M0 0 L20 0" />
+    <circle cx="25" cy="0" r="5" />
+    
+    <!-- 扳手手柄 -->
+    <path d="M-5 0 L-25 0" />
+    <path d="M-25 0 L-25 -15" />
+  </g>
+</svg>

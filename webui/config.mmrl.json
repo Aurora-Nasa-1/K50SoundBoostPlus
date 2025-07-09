@@ -1,0 +1,17 @@
+{
+  "title": "AMMF WebUI",
+  "icon": "ammf-icon.png",
+  "description": "AMMF模块管理界面",
+  "version": "1.0.0",
+  "author": "AMMF Team",
+  "require": {
+    "packages": [
+      {
+        "code": 33661,
+        "packageName": "com.dergoogler.mmrl",
+        "supportText": "需要MMRL v33661或更高版本",
+        "supportLink": "https://github.com/MMRLApp/MMRL"
+      }
+    ]
+  }
+}

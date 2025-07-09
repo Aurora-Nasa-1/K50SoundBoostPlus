@@ -1,0 +1,73 @@
+name: Build Aurora Module
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'webui/package-lock.json'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq cmake make zip unzip curl
+    
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r28c
+    
+    - name: Install WebUI dependencies
+      if: hashFiles('webui/package-lock.json') != ''
+      run: |
+        cd webui
+        npm ci
+    
+    - name: Build Aurora Module
+      run: |
+        chmod +x build/build.sh
+        cd build
+        ./build.sh --auto
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: aurora-module-${{ github.sha }}
+        path: build_output/*.zip
+        retention-days: 30
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build_output/*.zip
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload to Release Assets
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        echo "Module built and uploaded successfully!"
+        ls -la build_output/

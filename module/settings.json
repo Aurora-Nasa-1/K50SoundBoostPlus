@@ -1,0 +1,44 @@
+{
+  "module": {
+    "AuroraModuleBuild": true,
+    "META_INF_default": false,
+    "install_script_default": true,
+    "webui_default": false
+  },
+
+  "build_module": true,
+  "build": {
+    "build_type": "Release",
+    "Github_update_repo": "your_name/your_repo",
+    
+    "architectures": ["arm64-v8a", "x86_64"],
+    "package_mode": "single_zip",
+
+    "Aurora_webui_build": true,
+    "webui": {
+      "webui_overlay_src_path": "webroot",
+      "webui_build_output_path": "webroot"
+    },
+
+    "script": {
+      "add_Aurora_function_for_script": true,
+      "add_log_support_for_script": true
+    },
+
+    "rewrite_module_properties": true,
+    "module_properties": {
+      "module_name": "AuroraModule",
+      "module_version": "1.0.1",
+      "module_versioncode": 1,
+      "module_author": "Aurora",
+      "module_description": "Aurora Module",
+      "updateJson": "httpURL"
+    },
+
+    "custom_build_script": false,
+    "build_script": {
+      "script_path": "custom_build_script.sh"
+    },
+    "use_tools_form": "build"
+  }
+}

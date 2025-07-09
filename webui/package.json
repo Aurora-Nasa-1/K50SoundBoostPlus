@@ -1,0 +1,16 @@
+{
+  "name": "modulewebui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview",
+    "analyze": "vite build --mode analyze"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}

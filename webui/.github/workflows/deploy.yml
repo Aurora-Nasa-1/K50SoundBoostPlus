@@ -1,0 +1,79 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  # 推送到main分支时触发
+  push:
+    branches: [ main ]
+  # 手动触发
+  workflow_dispatch:
+
+# 设置权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 确保只有一个部署任务同时运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # 构建任务
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Make name
+        run: |
+          #!/bin/bash
+          source build.sh
+          echo "BUILD FOR MODULE"
+          if [ "$Github_update_repo" = "" ]; then
+            echo "YOU NEED TO SET Github_update_repo MODID MODNAME CURRENT_TIME_VERSIONCODE"
+            echo "example: Aurora-Nasa-1/ModuleWebUI ModuleID ModuleName 240503"
+            exit 0
+          fi
+          sed -i "s/20240503/${CURRENT_TIME_VERSIONCODE}/g" src/pages/status.js
+          find src -name "status.js" -exec sed -i "s/Aurora-Nasa-1\/AMMF/${Github_update_repo}/g" {} \;
+          find src -name "*.js" -exec sed -i "s/AMMF/${MODID}/g" {} \;
+          sed -i "s/AMMF/${MODID}/g" src/index.html
+          find src/translations -name "*.json" -exec sed -i "s/AMMF/${MODNAME}/g" {} \;
+          echo "已完成文本替换"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build:prod
+        env:
+          NODE_ENV: production
+          GITHUB_PAGES: true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  # 部署任务
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

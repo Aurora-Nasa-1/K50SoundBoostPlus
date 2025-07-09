@@ -1,0 +1,67 @@
+/* 基础样式 - 从HTML内联样式迁移 */
+
+/* Material Symbols Rounded 字体 */
+@font-face {
+    font-family: "Material Symbols Rounded";
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: swap;
+    src: url(../fonts/google.woff2) format("woff2");
+}
+
+.material-symbols-rounded {
+    font-family: "Material Symbols Rounded";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 基础布局样式 */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    display: none;
+}
+
+/* 加载完成后的增强样式 */
+.app-loaded body {
+    overflow: auto;
+}
+
+.app-loaded #app {
+    opacity: 1;
+}
+
+/* 页面过渡动画 */
+.page-transition {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.page-transition.entering {
+    transform: translateY(10px);
+    opacity: 0;
+}
+
+.page-transition.entered {
+    transform: translateY(0);
+    opacity: 1;
+}

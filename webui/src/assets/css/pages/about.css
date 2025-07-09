@@ -1,0 +1,429 @@
+/**
+ * AMMF WebUI 关于页面样式
+ * 符合Material Design 3设计
+ */
+
+ .about-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+}
+
+/* 头部区域 */
+.about-header {
+    text-align: center;
+    padding: var(--spacing-xl) 0;
+}
+
+/* 强制居中样式 */
+.about-header-content {
+    text-align: center !important;
+    display: block;
+    width: 100%;
+}
+
+.about-header-content h2 {
+    text-align: center !important;
+    margin: 0 auto;
+}
+
+.about-header-content .about-description {
+    text-align: center !important;
+    margin: 0 auto;
+    max-width: 500px;
+}
+
+.about-header-content .version-badge {
+    display: inline-block;
+    margin: 0 auto var(--spacing-m);
+}
+
+.app-logo {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto var(--spacing-l);
+    background-color: var(--primary);
+    border-radius: var(--border-radius-l);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-logo .material-symbols-rounded {
+    font-size: 40px;
+    color: var(--on-primary);
+}
+
+.about-header h2 {
+    font: var(--headline-l);
+    color: var(--on-surface);
+    margin: 0 0 var(--spacing-s);
+}
+
+.version-badge {
+    display: inline-block;
+    background-color: var(--secondary-container);
+    color: var(--on-secondary-container);
+    padding: var(--spacing-xs) var(--spacing-l);
+    border-radius: var(--border-radius-xl);
+    font: var(--label-m);
+    margin-bottom: var(--spacing-m);
+}
+
+.about-description {
+    color: var(--on-surface-variant);
+    font: var(--body-l);
+    margin: 0;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* 内容卡片 */
+.about-card {
+    background-color: var(--surface-container-low);
+    border-radius: var(--border-radius-l);
+    overflow: hidden;
+
+}
+
+.about-section {
+    padding: var(--spacing-xl);
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.about-section:last-child {
+    border-bottom: none;
+}
+
+.section-title {
+    font: var(--title-m);
+    color: var(--on-surface);
+    margin: 0 0 var(--spacing-l);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s);
+}
+
+.section-title .material-symbols-rounded {
+    color: var(--primary);
+    font-size: 24px;
+}
+
+/* 信息列表 */
+.info-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-l);
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-l);
+}
+
+.info-icon {
+    width: 40px;
+    height: 40px;
+    background-color: var(--secondary-container);
+    border-radius: var(--border-radius-m);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.info-icon .material-symbols-rounded {
+    font-size: 20px;
+    color: var(--on-secondary-container);
+}
+
+.info-content {
+    flex: 1;
+}
+
+.info-label {
+    font: var(--label-m);
+    color: var(--on-surface-variant);
+    margin-bottom: var(--spacing-xs);
+}
+
+.info-value {
+    font: var(--body-l);
+    color: var(--on-surface);
+}
+
+/* 开发者信息 */
+.developer-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-m);
+}
+
+.developer-name {
+    font: var(--title-s);
+    color: var(--on-surface);
+}
+
+.social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-s);
+    padding: var(--spacing-s) var(--spacing-l);
+    background-color: var(--secondary-container);
+    color: var(--on-secondary-container);
+    border-radius: var(--border-radius-xl);
+    text-decoration: none;
+    font: var(--label-m);
+    width: fit-content;
+    transition: background-color var(--tra);
+}
+
+.social-link:hover {
+    background-color: var(--primary-container);
+    color: var(--on-primary-container);
+}
+
+.social-link .material-symbols-rounded {
+    font-size: 18px;
+}
+
+/* 页脚 */
+.about-footer {
+    text-align: center;
+    color: var(--on-surface-variant);
+    font: var(--body-s);
+    padding: var(--spacing-l) 0;
+    margin-top: var(--spacing-l);
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    color: var(--on-surface-variant);
+    font: var(--body-m);
+    padding: var(--spacing-xl);
+    background-color: var(--surface-container-lowest);
+    border-radius: var(--border-radius-m);
+    border: 1px dashed var(--outline-variant);
+}
+/* ===== 颜色选择器专用样式 ===== */
+.color-picker-content {
+    padding: var(--spacing-m);
+}
+
+.preset-colors {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--spacing-m);
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-s);
+}
+
+.preset-color {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--border-radius-m);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid var(--outline-variant);
+    position: relative;
+    overflow: hidden;
+    justify-self: center;
+}
+
+.preset-color:hover {
+    transform: scale(1.08);
+    border-color: var(--primary);
+    box-shadow: var(--elevation-2);
+}
+
+.preset-color.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 25%, transparent);
+    transform: scale(1.05);
+}
+
+.color-preview {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, 
+        oklch(0.7 0.15 var(--preview-hue, 300)) 0%,
+        oklch(0.5 0.12 var(--preview-hue, 300)) 100%);
+    border-radius: inherit;
+}
+
+.hue-control {
+    margin-top: var(--spacing-xl);
+    padding: 0 var(--spacing-s);
+}
+
+.hue-control label {
+    display: block;
+    font: var(--label-m);
+    color: var(--on-surface);
+    margin-bottom: var(--spacing-m);
+    font-weight: 500;
+}
+
+.hue-slider-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-l);
+    padding: var(--spacing-s) 0;
+}
+
+.hue-slider {
+    flex: 1;
+    height: 8px;
+    border-radius: var(--border-radius-s);
+    background: linear-gradient(to right,
+        hsl(0, 70%, 60%),
+        hsl(60, 70%, 60%),
+        hsl(120, 70%, 60%),
+        hsl(180, 70%, 60%),
+        hsl(240, 70%, 60%),
+        hsl(300, 70%, 60%),
+        hsl(360, 70%, 60%)
+    );
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.hue-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--primary);
+    cursor: pointer;
+    box-shadow: var(--elevation-2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hue-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: var(--elevation-3);
+}
+
+.hue-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--primary);
+    cursor: pointer;
+    box-shadow: var(--elevation-2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hue-value {
+    font: var(--label-l);
+    color: var(--primary);
+    font-weight: 600;
+    min-width: 48px;
+    text-align: center;
+    padding: var(--spacing-xs) var(--spacing-s);
+    background-color: var(--surface-container-high);
+    border-radius: var(--border-radius-s);
+    border: 1px solid var(--outline-variant);
+    line-height: 1.2;
+}
+
+/* 响应式设计 */
+@media (min-width: 768px) {
+    .about-container {
+        padding: var(--spacing-xl);
+        max-width: 1000px;
+    }
+
+    .about-header {
+        display: flex;
+        align-items: center;
+        text-align: left;
+        gap: var(--spacing-xl);
+    }
+
+    .app-logo {
+        margin: 0;
+        width: 80px;
+        height: 80px;
+    }
+
+    .app-logo .material-symbols-rounded {
+        font-size: 48px;
+    }
+
+    .about-header-content {
+        flex: 1;
+    }
+
+    .about-description {
+        margin: 0;
+        max-width: none;
+    }
+
+    .about-card {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1px;
+        background-color: var(--outline-variant);
+    }
+
+    .about-section {
+        background-color: var(--surface-container-low);
+        border: none;
+    }
+}
+
+@media (min-width: 1200px) {
+    .about-card {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* 颜色选择器响应式优化 */
+@media (max-width: 480px) {
+    .preset-colors {
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--spacing-s);
+    }
+    
+    .preset-color {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .hue-slider-container {
+        gap: var(--spacing-m);
+    }
+    
+    .hue-value {
+        min-width: 44px;
+        font: var(--label-m);
+    }
+}
+
+@media (min-width: 768px) {
+    .preset-colors {
+        grid-template-columns: repeat(8, 1fr);
+        gap: var(--spacing-l);
+    }
+    
+    .preset-color {
+        width: 48px;
+        height: 48px;
+    }
+    
+    .color-picker-content {
+        padding: var(--spacing-l);
+    }
+}

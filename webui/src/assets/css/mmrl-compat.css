@@ -1,0 +1,64 @@
+/**
+ * MMRL WebUI X 兼容性样式
+ * 支持MMRL动态主题和安全区域
+ */
+
+/* MMRL WebUI X 主题变量支持 */
+body {
+    /* 使用MMRL提供的主题变量，如果不存在则回退到默认值 */
+    background-color: var(--background, #fef7ff);
+    color: var(--onBackground, #1d1b20);
+    
+    /* 安全区域支持 */
+    padding-top: var(--window-inset-top, 0px);
+    padding-bottom: var(--window-inset-bottom, 0px);
+    padding-left: var(--window-inset-left, 0px);
+    padding-right: var(--window-inset-right, 0px);
+}
+
+/* 应用容器适配 */
+#app {
+    min-height: calc(100vh - var(--window-inset-top, 0px) - var(--window-inset-bottom, 0px));
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: var(--background, #141218);
+        color: var(--onBackground, #e6e0e9);
+    }
+    
+    .app-header {
+        background-color: var(--surface, #141218);
+        color: var(--onSurface, #e6e0e9);
+        border-bottom-color: var(--outline, #938f99);
+    }
+    
+    .card {
+        background-color: var(--surfaceContainer, #211f26);
+        color: var(--onSurface, #e6e0e9);
+        border-color: var(--outline, #938f99);
+    }
+}
+
+/* MMRL特定的响应式适配 */
+@media (max-width: 600px) {
+    body {
+        padding-left: max(var(--window-inset-left, 0px), 16px);
+        padding-right: max(var(--window-inset-right, 0px), 16px);
+    }
+}
+
+/* 确保在MMRL环境中的兼容性 */
+.mmrl-webui body {
+    /* 重置一些可能冲突的样式 */
+    font-family: var(--font-family, 'Roboto', sans-serif);
+    line-height: var(--line-height, 1.5);
+}
+
+/* 为MMRL WebUI X优化的动画 */
+@media (prefers-reduced-motion: no-preference) {
+    .mmrl-webui * {
+        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+}
