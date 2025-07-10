@@ -25,26 +25,34 @@
     -webkit-font-smoothing: antialiased;
 }
 
-/* 基础布局样式 */
-html, body {
+html,
+body {
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
     margin: 0;
     padding: 0;
-    height: 100%;
-    overflow-x: hidden;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    background-color: var(--md-sys-color-background);
+    color: var(--md-sys-color-on-background);
+    font-family: 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
+/* 隐藏滚动条 */
+::-webkit-scrollbar {
     display: none;
 }
 
-/* 加载完成后的增强样式 */
-.app-loaded body {
+/* 应用程序加载后，允许内容滚动 */
+body.app-loaded {
     overflow: auto;
+}
+
+/* MMRL WebUI X 顶栏防遮挡 */
+body.mmrl-webui-x {
+    padding-top: env(safe-area-inset-top);
 }
 
 .app-loaded #app {

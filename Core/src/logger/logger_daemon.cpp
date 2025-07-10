@@ -1,224 +1,229 @@
-#include "buffer_manager.h"
-#include "file_manager.h"
+#include "buffer_manager.hpp"
+#include "file_manager.hpp"
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <signal.h>
 #include <poll.h>
 #include <cstring>
-#include <cstdlib>
 #include <cstdio>
 #include <ctime>
-#include <chrono>
-#include <thread>
+#include <string_view>
+#include <atomic>
+#include <memory>
+#include <sstream>
+#include <iomanip>
 
-static volatile bool running = true;
-static volatile bool force_flush = false;
-static const char* socket_path = "/tmp/logger_daemon";
-static BufferManager* global_buffer = nullptr;
-static FileManager* global_file_mgr = nullptr;
+static std::atomic<bool> running{true};
+static std::atomic<bool> force_flush{false};
+static std::unique_ptr<BufferManager> global_buffer;
+static std::unique_ptr<FileManager> global_file_mgr;
+static int daemon_pid = 0;
 
-// Signal handler for SIGUSR1 - force flush without shutdown
-void usr1_signal_handler(int sig) {
-    (void)sig;  // Suppress unused parameter warning
-    printf("\nReceived SIGUSR1, forcing buffer flush...\n");
-    force_flush = true;
+void usr1_signal_handler(int sig) noexcept {
+    (void)sig;
+    force_flush.store(true, std::memory_order_relaxed);
 }
 
-// Enhanced signal handler for graceful shutdown
-void signal_handler(int sig) {
-    (void)sig;  // Suppress unused parameter warning
-    printf("\nReceived signal %d, initiating graceful shutdown...\n", sig);
-    running = false;
-    force_flush = true;
+void signal_handler(int sig) noexcept {
+    (void)sig;
+    running.store(false, std::memory_order_relaxed);
+    force_flush.store(true, std::memory_order_relaxed);
 }
 
-// Emergency signal handler for unexpected termination
-void emergency_signal_handler(int sig) {
-    printf("\nEmergency signal %d received, flushing logs immediately...\n", sig);
+void emergency_signal_handler(int) noexcept {
     if (global_buffer && global_file_mgr && !global_buffer->is_empty()) {
-        char* data;
-        size_t data_len = global_buffer->get_data(&data);
-        if (data_len > 0) {
-            global_file_mgr->write_data(data, data_len);
-            global_file_mgr->force_sync();
+        const auto data = global_buffer->get_data();
+        if (!data.empty()) {
+            (void)global_file_mgr->write(std::string_view{data.data(), data.size()});
+            global_buffer->clear();
         }
     }
-    _exit(1);  // Force exit after emergency flush
+    _exit(1);
 }
 
-// Parse log level from message
-LogLevel parse_log_level(const char* message) {
-    if (strncmp(message, "[DEBUG]", 7) == 0) return LogLevel::DEBUG;
-    if (strncmp(message, "[INFO]", 6) == 0) return LogLevel::INFO;
-    if (strncmp(message, "[WARNING]", 9) == 0) return LogLevel::WARNING;
-    if (strncmp(message, "[ERROR]", 7) == 0) return LogLevel::ERROR;
-    if (strncmp(message, "[CRITICAL]", 10) == 0) return LogLevel::CRITICAL;
-    return LogLevel::INFO;  // Default level
+constexpr LogLevel parse_log_level_char(char level_char) noexcept {
+    switch (level_char) {
+        case 'd': return LogLevel::DEBUG;
+        case 'i': return LogLevel::INFO;
+        case 'w': return LogLevel::WARNING;
+        case 'e': return LogLevel::ERROR;
+        case 'c': return LogLevel::CRITICAL;
+        default:  return LogLevel::INFO;
+    }
+}
+
+
+
+void process_batch_message(std::string_view buffer, BufferManager& buf_mgr, FileManager& file_mgr) noexcept {
+    if (buffer.size() < 2) return;
+    
+    size_t offset = 1;
+    bool has_critical = false;
+    
+    while (offset < buffer.size()) {
+        if (offset >= buffer.size()) break;
+        
+        const char level_char = buffer[offset++];
+        const LogLevel level = parse_log_level_char(level_char);
+        if (level >= LogLevel::CRITICAL) has_critical = true;
+        
+        if (offset + sizeof(std::time_t) >= buffer.size()) break;
+        
+        std::time_t timestamp;
+        std::memcpy(&timestamp, buffer.data() + offset, sizeof(timestamp));
+        offset += sizeof(timestamp);
+        
+        const auto msg_start = buffer.find('\n', offset);
+        if (msg_start == std::string_view::npos) break;
+        
+        const auto message = buffer.substr(offset, msg_start - offset);
+        std::ostringstream oss;
+        oss << "[" << timestamp << "] [" << level_char << "] " << message << "\n";
+        const auto log_entry = oss.str();
+        
+        if (!buf_mgr.add_log(log_entry, level)) {
+            const auto data = buf_mgr.get_data();
+            if (!data.empty()) {
+                (void)file_mgr.write(std::string_view{data.data(), data.size()});
+                buf_mgr.clear();
+            }
+            (void)buf_mgr.add_log(log_entry, level);
+        }
+        
+        offset = msg_start + 1;
+    }
+    
+    if (has_critical) {
+        const auto data = buf_mgr.get_data();
+        if (!data.empty()) {
+            (void)file_mgr.write(std::string_view{data.data(), data.size()});
+            file_mgr.flush();
+            buf_mgr.clear();
+        }
+    }
+}
+
+void process_single_message(std::string_view buffer, BufferManager& buf_mgr, FileManager& file_mgr) noexcept {
+    if (buffer.size() < 2) return;
+    
+    const char level_char = buffer[0];
+    const LogLevel level = parse_log_level_char(level_char);
+    const auto now = std::time(nullptr);
+    const auto message = buffer.substr(1);
+    
+    std::ostringstream oss;
+    oss << "[" << now << "] [" << level_char << "] " << message << "\n";
+    const auto log_entry = oss.str();
+    
+    if (!buf_mgr.add_log(log_entry, level)) {
+        const auto data = buf_mgr.get_data();
+        if (!data.empty()) {
+            (void)file_mgr.write(std::string_view{data.data(), data.size()});
+            buf_mgr.clear();
+        }
+        (void)buf_mgr.add_log(log_entry, level);
+    }
+    
+    if (level >= LogLevel::CRITICAL) {
+        const auto data = buf_mgr.get_data();
+        if (!data.empty()) {
+            (void)file_mgr.write(std::string_view{data.data(), data.size()});
+            file_mgr.flush();
+            buf_mgr.clear();
+        }
+    }
 }
 
 int main(int argc, const char* const argv[]) {
     const char* log_path = "/data/local/tmp/app.log";
-    size_t max_size = 10 * 1024 * 1024; // 10MB
-    int max_files = 5;
-    size_t buffer_size = 64 * 1024; // 64KB
-    int sleep_ms = 100; // 100ms sleep for power saving
-    int flush_interval_ms = 5000; // 5 second flush interval
+    size_t max_size = 5 * 1024 * 1024;
+    int max_files = 3;
+    size_t buffer_size = 64 * 1024;
+    int sleep_ms = 500;
     
-    // Parse command line arguments
+    daemon_pid = getpid();
+    
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
             log_path = argv[++i];
-        } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
-            max_size = static_cast<size_t>(atol(argv[++i]));
-        } else if (strcmp(argv[i], "-n") == 0 && i + 1 < argc) {
-            max_files = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
-            buffer_size = static_cast<size_t>(atol(argv[++i]));
-        } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
-            socket_path = argv[++i];
-        } else if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
-            flush_interval_ms = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            printf("Usage: %s [options]\n", argv[0]);
-            printf("Options:\n");
-            printf("  -f <path>     Log file path (default: /data/local/tmp/app.log)\n");
-            printf("  -s <size>     Max file size in bytes (default: 10MB)\n");
-            printf("  -n <count>    Max number of log files (default: 5)\n");
-            printf("  -b <size>     Buffer size in bytes (default: 64KB)\n");
-            printf("  -p <path>     Socket path (default: /tmp/logger_daemon)\n");
-            printf("  -t <ms>       Flush interval in milliseconds (default: 5000)\n");
-            printf("  -h, --help    Show this help message\n");
+        } else if (strcmp(argv[i], "-h") == 0) {
+            printf("Usage: %s [-f <path>]\n", argv[0]);
             return 0;
         }
     }
     
-    // Setup signal handlers for graceful shutdown
+
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
-    signal(SIGQUIT, signal_handler);
-    signal(SIGUSR1, usr1_signal_handler);  // Handle USR1 for testing (flush only)
-    
-    // Setup emergency signal handlers for unexpected termination
+    signal(SIGUSR1, usr1_signal_handler);
     signal(SIGSEGV, emergency_signal_handler);
     signal(SIGABRT, emergency_signal_handler);
-    signal(SIGFPE, emergency_signal_handler);
     
-    // Initialize components
-    BufferManager buffer(buffer_size);
-    FileManager file_mgr(log_path, max_size, max_files);
-    
-    // Set global pointers for signal handlers
-    global_buffer = &buffer;
-    global_file_mgr = &file_mgr;
-    
-    // Configure buffer flush interval
-    buffer.set_flush_interval(flush_interval_ms);
-    
-    // Create Unix domain socket
-    int server_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+    global_buffer = std::make_unique<BufferManager>(buffer_size);
+    global_file_mgr = std::make_unique<FileManager>(log_path, max_size, max_files);
+
+    const int server_fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
     if (server_fd < 0) {
         perror("socket");
         return 1;
     }
     
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
+    struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    std::ostringstream path_oss;
+    path_oss << "/tmp/aurora_" << daemon_pid << ".sock";
+    const auto socket_path = path_oss.str();
+    std::copy_n(socket_path.begin(), std::min(socket_path.size(), sizeof(addr.sun_path) - 1), addr.sun_path);
     
-    unlink(socket_path); // Remove existing socket
     if (bind(server_fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) < 0) {
         perror("bind");
         close(server_fd);
         return 1;
     }
     
-    printf("Logger daemon started, socket: %s\n", socket_path);
+
     
-    char recv_buffer[4096];
+    std::array<char, 4096> recv_buffer{};
     struct pollfd pfd = {server_fd, POLLIN, 0};
     
-    printf("Logger daemon ready to receive logs...\n");
-    
-    while (running) {
-        // Poll with timeout for power saving
-        int poll_result = poll(&pfd, 1, sleep_ms);
+    while (running.load(std::memory_order_relaxed)) {
+        const int poll_result = poll(&pfd, 1, sleep_ms);
         
         if (poll_result > 0 && (pfd.revents & POLLIN)) {
-            ssize_t len = recv(server_fd, recv_buffer, sizeof(recv_buffer) - 1, 0);
+            const ssize_t len = recv(server_fd, recv_buffer.data(), recv_buffer.size(), MSG_DONTWAIT);
             if (len > 0) {
-                recv_buffer[len] = '\0';
-                
-                // Parse log level from message
-                LogLevel level = parse_log_level(recv_buffer);
-                
-                // Add timestamp and format log entry
-                time_t now = time(nullptr);
-                const struct tm* tm_info = localtime(&now);
-                char timestamp[64];
-                strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-                
-                char log_entry[4200];
-                int entry_len = snprintf(log_entry, sizeof(log_entry), 
-                    "[%s] %s\n", timestamp, recv_buffer);
-                
-                // Try to add to buffer
-                if (!buffer.add_log(log_entry, static_cast<size_t>(entry_len), level)) {
-                    // Buffer full, flush first
-                    char* data;
-                    size_t data_len = buffer.get_data(&data);
-                    if (data_len > 0) {
-                        file_mgr.write_data(data, data_len);
-                        buffer.clear();
-                    }
-                    buffer.add_log(log_entry, static_cast<size_t>(entry_len), level);
-                }
-                
-                // Immediately flush for ERROR and CRITICAL logs
-                if (level >= LogLevel::ERROR) {
-                    char* data;
-                    size_t data_len = buffer.get_data(&data);
-                    if (data_len > 0) {
-                        file_mgr.write_data(data, data_len);
-                        file_mgr.force_sync();  // Ensure immediate write to disk
-                        buffer.clear();
-                    }
+                const std::string_view buffer_view{recv_buffer.data(), static_cast<size_t>(len)};
+                if (recv_buffer[0] == 'B') {
+                    process_batch_message(buffer_view, *global_buffer, *global_file_mgr);
+                } else {
+                    process_single_message(buffer_view, *global_buffer, *global_file_mgr);
                 }
             }
         }
         
-        // Check if buffer should be flushed (time-based or size-based)
-        if (buffer.should_flush() || buffer.should_force_flush() || force_flush) {
-            char* data;
-            size_t data_len = buffer.get_data(&data);
-            if (data_len > 0) {
-                file_mgr.write_data(data, data_len);
-                if (force_flush) {
-                    file_mgr.force_sync();  // Force sync on shutdown
+        const bool should_force = force_flush.load(std::memory_order_relaxed);
+        if (global_buffer->should_flush() || global_buffer->should_force_flush() || should_force) {
+            const auto data = global_buffer->get_data();
+            if (!data.empty()) {
+                (void)global_file_mgr->write(std::string_view{data.data(), data.size()});
+                if (should_force) {
+                    global_file_mgr->flush();
                 }
-                buffer.clear();
+                global_buffer->clear();
             }
-            force_flush = false;
-        }
-        
-        // Power saving sleep when no activity
-        if (poll_result == 0) {
-            usleep(static_cast<useconds_t>(sleep_ms * 1000));
+            force_flush.store(false, std::memory_order_relaxed);
         }
     }
     
-    // Flush remaining buffer on exit
-    char* data;
-    size_t data_len = buffer.get_data(&data);
-    if (data_len > 0) {
-        file_mgr.write_data(data, data_len);
-        file_mgr.force_sync();
+    const auto data = global_buffer->get_data();
+    if (!data.empty()) {
+        (void)global_file_mgr->write(std::string_view{data.data(), data.size()});
+        global_file_mgr->flush();
     }
     
     close(server_fd);
-    unlink(socket_path);
-    printf("Logger daemon stopped\n");
-    
     return 0;
 }

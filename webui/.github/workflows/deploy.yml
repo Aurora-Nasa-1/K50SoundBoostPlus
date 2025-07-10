@@ -45,8 +45,8 @@ jobs:
           sed -i "s/20240503/${CURRENT_TIME_VERSIONCODE}/g" src/pages/status.js
           find src -name "status.js" -exec sed -i "s/Aurora-Nasa-1\/AMMF/${Github_update_repo}/g" {} \;
           find src -name "*.js" -exec sed -i "s/AMMF/${MODID}/g" {} \;
-          sed -i "s/AMMF/${MODID}/g" src/index.html
-          find src/translations -name "*.json" -exec sed -i "s/AMMF/${MODNAME}/g" {} \;
+          sed -i "s/AMMF/${MODID}/g" index.html
+          find src/assets/translations -name "*.json" -exec sed -i "s/AMMF/${MODNAME}/g" {} \;
           echo "已完成文本替换"
 
       - name: Install dependencies

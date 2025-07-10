@@ -272,7 +272,21 @@ export const SettingsPage = {
 
         const optionsHtml = options.map(option => {
             const optionValue = option.value;
-            const label = option.label ? (option.label[I18n.currentLang] || option.label.en || optionValue) : optionValue;
+            let label = optionValue;
+            
+            // 处理标签的多语言支持
+            if (option.label) {
+                if (typeof option.label === 'string') {
+                    label = option.label;
+                } else {
+                    const lang = I18n.currentLang;
+                    label = option.label[lang] || option.label.en || optionValue;
+                }
+            }
+            
+            // 确保标签是字符串
+            label = typeof label === 'string' ? label : optionValue;
+            
             return `<option value="${optionValue}" ${optionValue === value ? 'selected' : ''}>${label}</option>`;
         }).join('');
 
@@ -288,9 +302,14 @@ export const SettingsPage = {
 
     getSettingDescription(key) {
         if (this.settingsDescriptions[key]) {
-            return this.settingsDescriptions[key][I18n.currentLang] ||
-                this.settingsDescriptions[key].en ||
-                key;
+            // 优先使用当前语言的描述，其次使用英文描述，最后使用键名
+            const lang = I18n.currentLang;
+            const description = this.settingsDescriptions[key][lang] || 
+                              this.settingsDescriptions[key].en || 
+                              key;
+            
+            // 确保返回字符串
+            return typeof description === 'string' ? description : key;
         }
         return key;
     },
@@ -389,10 +408,28 @@ export const SettingsPage = {
             }
 
             const metadata = JSON.parse(metadataContent);
+            
+            // 确保排除项、描述和选项正确应用
+            const excluded = Array.isArray(metadata.excluded) ? metadata.excluded : [];
+            const descriptions = metadata.descriptions || {};
+            const options = metadata.options || {};
+            
+            // 验证语言选项
+            for (const key in options) {
+                if (options[key]?.options) {
+                    options[key].options = options[key].options.map(opt => {
+                        if (typeof opt === 'string') {
+                            return { value: opt, label: { en: opt } };
+                        }
+                        return opt;
+                    });
+                }
+            }
+            
             return {
-                excluded: metadata.excluded || [],
-                descriptions: metadata.descriptions || {},
-                options: metadata.options || {}
+                excluded,
+                descriptions,
+                options
             };
         } catch (error) {
             console.error('加载设置元数据失败:', error);

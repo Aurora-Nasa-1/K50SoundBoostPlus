@@ -1,257 +1,312 @@
-#!/system/bin/sh
-# 高性能日志系统 - 与C++日志组件集成
-# 版本: 3.0.0 - 重构版本
+#!/bin/sh
 
-# ============================
-# Global Variables
-# ============================
+# Aurora Logger System - 协调的日志系统
+# 管理daemon启动、内存socket通信和shell级缓冲
+
+# 基础配置
 LOGGER_INITIALIZED=0
 LOG_FILE_NAME="main"
-LOGGER_DAEMON_PID=""
 LOGGER_DAEMON_BIN="${MODPATH}/bin/logger_daemon"
 LOGGER_CLIENT_BIN="${MODPATH}/bin/logger_client"
-SOCKET_PATH="${MODPATH}/tmp/logger_daemon"
 LOG_DIR="${MODPATH}/logs"
-LOG_LEVEL="info"  # debug, info, warning, error, critical
-LOW_POWER_MODE=0  # Default: Low power mode off
-FLUSH_INTERVAL=5000  # 5 seconds in milliseconds
-BUFFER_SIZE=65536    # 64KB buffer size
-MAX_FILE_SIZE=10485760  # 10MB max file size
-MAX_FILES=5          # Maximum number of log files
+LOG_LEVEL="info"
+DAEMON_PID_FILE="/tmp/aurora_daemon.pid"
+DAEMON_PID=0
 
-# ============================
-# Core Functions
-# ============================
+# Shell缓冲配置
+SHELL_BUFFER_FILE="/tmp/aurora_shell_buffer.tmp"
+SHELL_BUFFER_SIZE=50
+SHELL_BUFFER_TIMEOUT=5
+SHELL_BUFFER_COUNT=0
+LAST_FLUSH_TIME=$(date +%s)
 
-# Initialize logger system
-init_logger() {
-    [ "$LOGGER_INITIALIZED" = "1" ] && return 0
+# 创建必要的目录
+mkdir -p "$LOG_DIR" 2>/dev/null
+
+# 启动daemon进程
+start_daemon() {
+    # 检查是否已有daemon运行
+    if [ -f "$DAEMON_PID_FILE" ]; then
+        DAEMON_PID=$(cat "$DAEMON_PID_FILE")
+        if kill -0 "$DAEMON_PID" 2>/dev/null; then
+            return 0
+        fi
+        rm -f "$DAEMON_PID_FILE"
+    fi
     
-    # Create necessary directories
-    mkdir -p "$LOG_DIR" 2>/dev/null
-    mkdir -p "$(dirname "$SOCKET_PATH")" 2>/dev/null
-    
-    # Check if daemon binary exists
+    # 检查daemon二进制文件
     if [ ! -f "$LOGGER_DAEMON_BIN" ]; then
-        ui_print "Logger daemon not found: $LOGGER_DAEMON_BIN" >&2
+        echo "Error: Logger daemon not found at $LOGGER_DAEMON_BIN" >&2
         return 1
     fi
     
-    # Check if daemon is already running
-    LOGGER_DAEMON_PID=$(pgrep -f "$LOGGER_DAEMON_BIN" 2>/dev/null)
-    if [ -z "$LOGGER_DAEMON_PID" ]; then
-        # Start logger daemon with configuration
-        local log_file="$LOG_DIR/$LOG_FILE_NAME.log"
+    # 启动daemon，使用内存中的socket路径
+    "$LOGGER_DAEMON_BIN" -f "$LOG_DIR/$LOG_FILE_NAME.log" &
+    DAEMON_PID=$!
+    echo $DAEMON_PID > "$DAEMON_PID_FILE"
+    
+    # 等待daemon初始化
+    sleep 1
+    
+    # 验证daemon是否正在运行
+    if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+        echo "Error: Failed to start logger daemon" >&2
+        rm -f "$DAEMON_PID_FILE"
+        return 1
+    fi
+    
+    return 0
+}
+
+# 日志级别映射函数
+map_log_level() {
+    case "$1" in
+        "trace"|"t") echo "d" ;;  # 使用debug字符代替trace
+        "debug"|"d") echo "d" ;;
+        "info"|"i") echo "i" ;;
+        "warning"|"warn"|"w") echo "w" ;;
+        "error"|"e") echo "e" ;;
+        "fatal"|"critical"|"c") echo "c" ;;
+        *) echo "i" ;;  # 默认为info
+    esac
+}
+
+# Shell缓冲管理
+add_to_shell_buffer() {
+    local level="$1"
+    local message="$2"
+    local level_char
+    
+    # 转换日志级别为字符
+    level_char=$(map_log_level "$level")
+    
+    # 添加到缓冲区
+    echo "$level_char $message" >> "$SHELL_BUFFER_FILE"
+    SHELL_BUFFER_COUNT=$((SHELL_BUFFER_COUNT + 1))
+    
+    # 检查是否需要刷新
+    check_shell_buffer_flush
+}
+
+check_shell_buffer_flush() {
+    local current_time=$(date +%s)
+    local time_diff=$((current_time - LAST_FLUSH_TIME))
+    
+    # 如果缓冲区满了或超时，则刷新
+    if [ "$SHELL_BUFFER_COUNT" -ge "$SHELL_BUFFER_SIZE" ] || [ "$time_diff" -ge "$SHELL_BUFFER_TIMEOUT" ]; then
+        flush_shell_buffer
+    fi
+}
+
+flush_shell_buffer() {
+    if [ -f "$SHELL_BUFFER_FILE" ] && [ "$SHELL_BUFFER_COUNT" -gt 0 ]; then
+        # 使用批量发送
+        "$LOGGER_CLIENT_BIN" -p "$DAEMON_PID" -b "$SHELL_BUFFER_FILE" 2>/dev/null
         
-        if [ "$LOW_POWER_MODE" = "1" ]; then
-            # Low power mode with longer flush interval
-            "$LOGGER_DAEMON_BIN" -f "$log_file" -p "$SOCKET_PATH" \
-                -s "$MAX_FILE_SIZE" -n "$MAX_FILES" -b "$BUFFER_SIZE" \
-                -t $((FLUSH_INTERVAL * 2)) >/dev/null 2>&1 &
-        else
-            # Normal mode
-            "$LOGGER_DAEMON_BIN" -f "$log_file" -p "$SOCKET_PATH" \
-                -s "$MAX_FILE_SIZE" -n "$MAX_FILES" -b "$BUFFER_SIZE" \
-                -t "$FLUSH_INTERVAL" >/dev/null 2>&1 &
-        fi
-        
-        LOGGER_DAEMON_PID=$!
-        sleep 0.2  # Wait for daemon to initialize
-        
-        # Verify daemon started successfully
-        if ! kill -0 "$LOGGER_DAEMON_PID" 2>/dev/null; then
-            ui_print "Failed to start logger daemon" >&2
-            return 1
-        fi
+        # 清空缓冲区
+        > "$SHELL_BUFFER_FILE"
+        SHELL_BUFFER_COUNT=0
+        LAST_FLUSH_TIME=$(date +%s)
+    fi
+}
+
+# 检查logger系统状态
+check_logger() {
+    [ "$LOGGER_INITIALIZED" = "1" ] && return 0
+    
+    # 检查客户端二进制文件
+    if [ ! -f "$LOGGER_CLIENT_BIN" ]; then
+        echo "Error: Logger client not found at $LOGGER_CLIENT_BIN" >&2
+        return 1
+    fi
+    
+    # 启动daemon
+    if ! start_daemon; then
+        return 1
     fi
     
     LOGGER_INITIALIZED=1
     return 0
 }
 
-# Log a message with specified level
-log() {
-    local level="$1"
-    local message="$2"
-    [ -z "$level" ] && return 1
-    [ -z "$message" ] && return 1
-    
-    # Initialize logger if not already done
-    [ "$LOGGER_INITIALIZED" != "1" ] && init_logger
-    
-    # Check if client binary exists
-    if [ ! -f "$LOGGER_CLIENT_BIN" ]; then
-        echo "Logger client not found: $LOGGER_CLIENT_BIN" >&2
-        return 1
-    fi
-    
-    # Send log message using client
-    "$LOGGER_CLIENT_BIN" -p "$SOCKET_PATH" -l "$level" -m "$message" 2>/dev/null
-    return $?
+# 初始化logger系统
+init_logger() {
+    check_logger
 }
 
-# Convenience functions for different log levels
+# 主要的日志记录函数（使用shell缓冲）
+log() {
+    [ -z "$1" ] || [ -z "$2" ] && return 1
+    
+    check_logger || return 1
+    
+    local level_char
+    level_char=$(map_log_level "$1")
+    
+    # 对于critical/fatal级别的日志，立即发送
+    case "$1" in
+        "fatal"|"critical"|"error")
+            # 先刷新缓冲区
+            flush_shell_buffer
+            # 立即发送critical日志
+            "$LOGGER_CLIENT_BIN" -p "$DAEMON_PID" -l "$level_char" "$2" 2>/dev/null
+            ;;
+        *)
+            # 其他级别使用缓冲
+            add_to_shell_buffer "$1" "$2"
+            ;;
+    esac
+}
+
+# 立即发送日志（绕过缓冲）
+log_immediate() {
+    [ -z "$1" ] || [ -z "$2" ] && return 1
+    
+    check_logger || return 1
+    
+    local level_char
+    level_char=$(map_log_level "$1")
+    
+    "$LOGGER_CLIENT_BIN" -p "$DAEMON_PID" -l "$level_char" "$2" 2>/dev/null
+}
+
+# 便捷的日志级别函数
+log_trace() { log "trace" "$1"; }
 log_debug() { log "debug" "$1"; }
 log_info() { log "info" "$1"; }
 log_warn() { log "warning" "$1"; }
-log_warning() { log "warning" "$1"; }
 log_error() { log "error" "$1"; }
-log_critical() { log "critical" "$1"; }
+log_fatal() { log "fatal" "$1"; }
 
-# Batch log from file
+# 立即发送的日志级别函数
+log_trace_immediate() { log_immediate "trace" "$1"; }
+log_debug_immediate() { log_immediate "debug" "$1"; }
+log_info_immediate() { log_immediate "info" "$1"; }
+log_warn_immediate() { log_immediate "warning" "$1"; }
+log_error_immediate() { log_immediate "error" "$1"; }
+log_fatal_immediate() { log_immediate "fatal" "$1"; }
+
+# 批量日志记录（直接发送到daemon）
 batch_log() {
-    local batch_file="$1"
-    local level="${2:-info}"  # Default to info level
-    [ -z "$batch_file" ] && return 1
-    [ ! -f "$batch_file" ] && return 1
+    [ -z "$1" ] || [ ! -f "$1" ] && return 1
     
-    # Initialize logger if not already done
-    [ "$LOGGER_INITIALIZED" != "1" ] && init_logger
+    check_logger || return 1
     
-    # Read file line by line and send each line as a log message
-    while IFS= read -r line || [ -n "$line" ]; do
-        [ -n "$line" ] && log "$level" "$line"
-    done < "$batch_file"
+    # 先刷新shell缓冲区
+    flush_shell_buffer
     
-    return 0
+    # 直接使用客户端的批量发送功能
+    "$LOGGER_CLIENT_BIN" -p "$DAEMON_PID" -b "$1" 2>/dev/null
 }
 
-# Set log file name
+# 配置函数
 set_log_file() {
-    [ -z "$1" ] && return 1
-    LOG_FILE_NAME="$1"
-    
-    # If logger is already initialized, restart with new file name
-    if [ "$LOGGER_INITIALIZED" = "1" ]; then
-        stop_logger
-        init_logger
+    if [ -n "$1" ]; then
+        LOG_FILE_NAME="$1"
+        # 如果daemon已运行，需要重启以应用新的日志文件
+        if [ "$LOGGER_INITIALIZED" = "1" ]; then
+            stop_logger
+            init_logger
+        fi
     fi
-    return 0
 }
 
-# Set log level (for filtering, though daemon handles all levels)
 set_log_level() {
-    [ -z "$1" ] && return 1
     case "$1" in
-        debug|info|warning|error|critical)
-            LOG_LEVEL="$1"
-            ;;
-        *)
-            echo "Invalid log level: $1. Use: debug, info, warning, error, critical" >&2
-            return 1
-            ;;
+        trace|debug|info|warning|error|fatal) LOG_LEVEL="$1" ;;
     esac
-    return 0
 }
 
-# Enable/disable low power mode
-set_low_power_mode() {
-    case "$1" in
-        1|true|on) LOW_POWER_MODE=1 ;;
-        *) LOW_POWER_MODE=0 ;;
-    esac
-    
-    # If logger is already initialized, restart with new power mode
-    if [ "$LOGGER_INITIALIZED" = "1" ]; then
-        stop_logger
-        init_logger
-    fi
-    return 0
+# 设置shell缓冲参数
+set_shell_buffer_size() {
+    [ -n "$1" ] && [ "$1" -gt 0 ] && SHELL_BUFFER_SIZE="$1"
 }
 
-# Flush logs (force daemon to flush buffers)
+set_shell_buffer_timeout() {
+    [ -n "$1" ] && [ "$1" -gt 0 ] && SHELL_BUFFER_TIMEOUT="$1"
+}
+
+# 强制刷新所有缓冲区
 flush_logs() {
-    if [ "$LOGGER_INITIALIZED" = "1" ] && [ -n "$LOGGER_DAEMON_PID" ]; then
-        # Send SIGUSR1 to force flush without shutdown
-        kill -USR1 "$LOGGER_DAEMON_PID" 2>/dev/null
-        return $?
+    # 刷新shell缓冲区
+    flush_shell_buffer
+    
+    # 向daemon发送刷新信号
+    if [ "$DAEMON_PID" -gt 0 ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+        kill -USR1 "$DAEMON_PID" 2>/dev/null
     fi
-    return 1
 }
 
-# Clean logs (remove log files)
+# 清理日志文件
 clean_logs() {
-    if [ -d "$LOG_DIR" ]; then
-        # Stop logger first to avoid conflicts
-        local was_running=0
-        [ "$LOGGER_INITIALIZED" = "1" ] && was_running=1 && stop_logger
-        
-        # Remove log files
-        rm -f "$LOG_DIR"/*.log* 2>/dev/null
-        
-        # Restart logger if it was running
-        [ "$was_running" = "1" ] && init_logger
-        return 0
-    fi
-    return 1
+    # 先停止logger
+    stop_logger
+    
+    # 清理日志文件
+    [ -d "$LOG_DIR" ] && rm -f "$LOG_DIR"/*.log* 2>/dev/null
+    
+    # 清理缓冲文件
+    rm -f "$SHELL_BUFFER_FILE" 2>/dev/null
 }
 
-# Stop logger system
+# 停止日志系统
 stop_logger() {
-    if [ "$LOGGER_INITIALIZED" = "1" ] && [ -n "$LOGGER_DAEMON_PID" ]; then
-        # Send SIGTERM for graceful shutdown
-        kill -TERM "$LOGGER_DAEMON_PID" 2>/dev/null
-        
-        # Wait for daemon to shutdown gracefully
-        local count=0
-        while [ $count -lt 10 ] && kill -0 "$LOGGER_DAEMON_PID" 2>/dev/null; do
-            sleep 0.1
-            count=$((count + 1))
-        done
-        
-        # Force kill if still running
-        if kill -0 "$LOGGER_DAEMON_PID" 2>/dev/null; then
-            kill -KILL "$LOGGER_DAEMON_PID" 2>/dev/null
+    # 刷新shell缓冲区
+    flush_shell_buffer
+    
+    # 停止daemon
+    if [ -f "$DAEMON_PID_FILE" ]; then
+        DAEMON_PID=$(cat "$DAEMON_PID_FILE")
+        if kill -0 "$DAEMON_PID" 2>/dev/null; then
+            kill -TERM "$DAEMON_PID" 2>/dev/null
+            sleep 1
+            # 如果还在运行，强制杀死
+            if kill -0 "$DAEMON_PID" 2>/dev/null; then
+                kill -KILL "$DAEMON_PID" 2>/dev/null
+            fi
         fi
-        
-        # Clean up socket file
-        rm -f "$SOCKET_PATH" 2>/dev/null
-        
-        LOGGER_DAEMON_PID=""
-        LOGGER_INITIALIZED=0
+        rm -f "$DAEMON_PID_FILE"
     fi
-    return 0
+    
+    # 清理状态
+    LOGGER_INITIALIZED=0
+    DAEMON_PID=0
+    SHELL_BUFFER_COUNT=0
+    
+    # 清理缓冲文件
+    rm -f "$SHELL_BUFFER_FILE" 2>/dev/null
 }
-# Additional utility functions
 
-# Get logger status
+# 获取日志系统状态
 get_logger_status() {
-    if [ "$LOGGER_INITIALIZED" = "1" ] && [ -n "$LOGGER_DAEMON_PID" ]; then
-        if kill -0 "$LOGGER_DAEMON_PID" 2>/dev/null; then
-            echo "Logger daemon running (PID: $LOGGER_DAEMON_PID)"
-            echo "Socket: $SOCKET_PATH"
-            echo "Log directory: $LOG_DIR"
-            echo "Log file: $LOG_FILE_NAME.log"
-            echo "Log level: $LOG_LEVEL"
-            echo "Low power mode: $LOW_POWER_MODE"
-            return 0
+    echo "=== Aurora Logger System Status ==="
+    
+    if [ "$LOGGER_INITIALIZED" = "1" ]; then
+        echo "Status: Initialized"
+        echo "Log file: $LOG_DIR/$LOG_FILE_NAME.log"
+        echo "Log level: $LOG_LEVEL"
+        
+        if [ -f "$DAEMON_PID_FILE" ]; then
+            DAEMON_PID=$(cat "$DAEMON_PID_FILE")
+            if kill -0 "$DAEMON_PID" 2>/dev/null; then
+                echo "Daemon: Running (PID: $DAEMON_PID)"
+                echo "Socket: /tmp/aurora_${DAEMON_PID}.sock"
+            else
+                echo "Daemon: Not running (stale PID file)"
+            fi
         else
-            echo "Logger daemon not responding (stale PID: $LOGGER_DAEMON_PID)"
-            LOGGER_DAEMON_PID=""
-            LOGGER_INITIALIZED=0
-            return 1
+            echo "Daemon: No PID file found"
         fi
+        
+        echo "Shell buffer: $SHELL_BUFFER_COUNT/$SHELL_BUFFER_SIZE entries"
+        echo "Buffer timeout: ${SHELL_BUFFER_TIMEOUT}s"
     else
-        echo "Logger daemon not running"
-        return 1
+        echo "Status: Not initialized"
     fi
 }
 
-# Test logger functionality
-test_logger() {
-    echo "Testing logger functionality..."
-    
-    # Test all log levels
-    log_debug "Debug message test"
-    log_info "Info message test"
-    log_warning "Warning message test"
-    log_error "Error message test"
-    log_critical "Critical message test"
-    
-    echo "Test messages sent. Check log file: $LOG_DIR/$LOG_FILE_NAME.log"
-    return 0
+# 清理函数（在脚本退出时调用）
+cleanup_on_exit() {
+    flush_shell_buffer
 }
-
-# Set configuration and initialize
-set_log_file "main"
 init_logger

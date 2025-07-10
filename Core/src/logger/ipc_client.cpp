@@ -1,88 +1,147 @@
-#include "ipc_client.h"
+#include "ipc_client.hpp"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstring>
 #include <cstdio>
+#include <ctime>
+#include <algorithm>
+#include <sstream>
 
-IPCClient::IPCClient(const char* socket_path) 
-    : socket_path_(socket_path), sock_fd_(-1), connected_(false) {
+IPCClient::IPCClient(int daemon_pid) noexcept
+    : daemon_pid_(daemon_pid) {
+    generate_socket_path();
+#ifdef ANDROID_DOZE_AWARE
+    setup_doze_protection();
+#endif
 }
 
-IPCClient::~IPCClient() {
-    if (sock_fd_ >= 0) {
-        close(sock_fd_);
+IPCClient::~IPCClient() noexcept {
+    const int fd = sock_fd_.load(std::memory_order_relaxed);
+    if (fd != -1) {
+        close(fd);
     }
+#ifdef ANDROID_DOZE_AWARE
+    if (wake_fd_ != -1) {
+        close(wake_fd_);
+    }
+#endif
 }
 
-bool IPCClient::connect() {
-    sock_fd_ = socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (sock_fd_ < 0) {
-        connected_ = false;
+bool IPCClient::ensure_connection() noexcept {
+    int current_fd = sock_fd_.load(std::memory_order_acquire);
+    
+    if (current_fd != -1) {
+        return true;
+    }
+    
+    const int new_fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+    if (new_fd == -1) {
         return false;
     }
     
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
+    struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
+    std::copy_n(socket_path_.data(), std::min(socket_path_.size(), sizeof(addr.sun_path) - 1), addr.sun_path);
     
-    // For DGRAM sockets, we don't need to connect, just store the address
-    memcpy(&server_addr_, &addr, sizeof(addr));
-    connected_ = true;
+    if (connect(new_fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) == -1) {
+        close(new_fd);
+        return false;
+    }
     
+    sock_fd_.store(new_fd, std::memory_order_release);
     return true;
 }
 
-bool IPCClient::send_log(const char* message, LogLevel level) {
-    if (sock_fd_ < 0 || !connected_) {
+void IPCClient::generate_socket_path() noexcept {
+    std::ostringstream oss;
+    oss << "/tmp/aurora_" << daemon_pid_ << ".sock";
+    const auto result = oss.str();
+    std::copy_n(result.begin(), std::min(result.size(), socket_path_.size() - 1), socket_path_.begin());
+    socket_path_[std::min(result.size(), socket_path_.size() - 1)] = '\0';
+}
+
+constexpr char IPCClient::level_to_char(LogLevel level) noexcept {
+    switch (level) {
+        case LogLevel::DEBUG: return 'd';
+        case LogLevel::INFO: return 'i';
+        case LogLevel::WARNING: return 'w';
+        case LogLevel::ERROR: return 'e';
+        case LogLevel::CRITICAL: return 'c';
+        default: return 'i';
+    }
+}
+
+bool IPCClient::send(std::string_view message, LogLevel level) noexcept {
+    if (!ensure_connection()) {
         return false;
     }
     
-    std::string formatted_msg = format_log_message(message, level);
-    ssize_t sent = sendto(sock_fd_, formatted_msg.c_str(), formatted_msg.length(), 0,
-                         reinterpret_cast<const struct sockaddr*>(&server_addr_), sizeof(server_addr_));
+    std::ostringstream oss;
+    oss << level_to_char(level) << message << "\n";
+    const auto formatted = oss.str();
     
-    return sent > 0;
+    const int fd = sock_fd_.load(std::memory_order_acquire);
+    const ssize_t sent = ::send(fd, formatted.data(), formatted.size(), MSG_DONTWAIT);
+    
+    if (sent == -1) {
+        sock_fd_.store(-1, std::memory_order_release);
+        close(fd);
+        return false;
+    }
+    
+    return sent == static_cast<ssize_t>(formatted.size());
 }
 
-bool IPCClient::is_connected() const {
-    return connected_ && sock_fd_ >= 0;
+bool IPCClient::batch_send(std::span<const std::string_view> messages, std::span<const LogLevel> levels) noexcept {
+    if (!ensure_connection() || messages.empty() || messages.size() != levels.size()) {
+        return false;
+    }
+    
+    std::string batch_buffer;
+    batch_buffer.reserve(4096);
+    batch_buffer += 'B';
+    
+    const auto now = std::time(nullptr);
+    
+    for (size_t i = 0; i < messages.size() && batch_buffer.size() < 3584; ++i) {
+        std::ostringstream entry_oss;
+        entry_oss << level_to_char(levels[i]) << now << messages[i] << "\n";
+        const auto entry = entry_oss.str();
+        
+        if (batch_buffer.size() + entry.size() >= 4096) {
+            break;
+        }
+        
+        batch_buffer += entry;
+    }
+    
+    const int fd = sock_fd_.load(std::memory_order_acquire);
+    const ssize_t sent = ::send(fd, batch_buffer.data(), batch_buffer.size(), MSG_DONTWAIT);
+    
+    if (sent == -1) {
+        sock_fd_.store(-1, std::memory_order_release);
+        close(fd);
+        return false;
+    }
+    
+    return sent == static_cast<ssize_t>(batch_buffer.size());
 }
 
-bool IPCClient::log_debug(const char* message) {
-    return send_log(message, LogLevel::DEBUG);
-}
-
-bool IPCClient::log_info(const char* message) {
-    return send_log(message, LogLevel::INFO);
-}
-
-bool IPCClient::log_warning(const char* message) {
-    return send_log(message, LogLevel::WARNING);
-}
-
-bool IPCClient::log_error(const char* message) {
-    return send_log(message, LogLevel::ERROR);
-}
-
-bool IPCClient::log_critical(const char* message) {
-    return send_log(message, LogLevel::CRITICAL);
-}
-
-std::string IPCClient::format_log_message(const char* message, LogLevel level) {
-    char buffer[4096];
-    snprintf(buffer, sizeof(buffer), "[%s] %s", level_to_string(level), message);
-    return std::string(buffer);
-}
-
-const char* IPCClient::level_to_string(LogLevel level) {
-    switch (level) {
-        case LogLevel::DEBUG:    return "DEBUG";
-        case LogLevel::INFO:     return "INFO";
-        case LogLevel::WARNING:  return "WARNING";
-        case LogLevel::ERROR:    return "ERROR";
-        case LogLevel::CRITICAL: return "CRITICAL";
-        default:                 return "UNKNOWN";
+void IPCClient::set_daemon_pid(int pid) {
+    if (daemon_pid_ != pid) {
+        daemon_pid_ = pid;
+        generate_socket_path();
+        const int fd = sock_fd_.load(std::memory_order_acquire);
+        if (fd != -1) {
+            close(fd);
+            sock_fd_.store(-1, std::memory_order_release);
+        }
     }
 }
+
+#ifdef ANDROID_DOZE_AWARE
+void IPCClient::setup_doze_protection() noexcept {
+    wake_fd_ = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+}
+#endif
