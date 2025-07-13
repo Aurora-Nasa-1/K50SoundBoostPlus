@@ -2,19 +2,35 @@
 
 # Aurora Logger System - 协调的日志系统
 # 管理daemon启动、内存socket通信和shell级缓冲
-
 # 基础配置
+# 检查并设置环境变量
+if [ -z "$MODPATH" ]; then
+    # 尝试从脚本位置推断MODPATH
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    MODPATH="$(dirname "$SCRIPT_DIR")"
+    echo "Warning: MODPATH not set, using inferred path: $MODPATH" >&2
+fi
+
+if [ -z "$MODID" ]; then
+    MODID="aurora_module"
+    echo "Warning: MODID not set, using default: $MODID" >&2
+fi
+
+# 确保临时目录存在
+mkdir -p "/tmp/$MODID"
+
+# 日志系统配置
 LOGGER_INITIALIZED=0
 LOG_FILE_NAME="main"
 LOGGER_DAEMON_BIN="${MODPATH}/bin/logger_daemon"
 LOGGER_CLIENT_BIN="${MODPATH}/bin/logger_client"
 LOG_DIR="${MODPATH}/logs"
 LOG_LEVEL="info"
-DAEMON_PID_FILE="/tmp/aurora_daemon.pid"
+DAEMON_PID_FILE="/tmp/$MODID/aurora_daemon.pid"
 DAEMON_PID=0
 
 # Shell缓冲配置
-SHELL_BUFFER_FILE="/tmp/aurora_shell_buffer.tmp"
+SHELL_BUFFER_FILE="/tmp/$MODID/aurora_shell_buffer.tmp"
 SHELL_BUFFER_SIZE=50
 SHELL_BUFFER_TIMEOUT=5
 SHELL_BUFFER_COUNT=0
@@ -40,17 +56,37 @@ start_daemon() {
         return 1
     fi
     
-    # 启动daemon，使用内存中的socket路径
-    "$LOGGER_DAEMON_BIN" -f "$LOG_DIR/$LOG_FILE_NAME.log" &
+    # 检查日志目录权限
+    if [ ! -w "$LOG_DIR" ]; then
+        echo "Error: Log directory $LOG_DIR is not writable" >&2
+        return 1
+    fi
+    
+    # 检查二进制文件权限
+    if [ ! -x "$LOGGER_DAEMON_BIN" ]; then
+        echo "Error: Logger daemon $LOGGER_DAEMON_BIN is not executable" >&2
+        return 1
+    fi
+    
+    # 启动daemon，使用内存中的socket路径，并捕获错误输出
+    local daemon_log="/tmp/$MODID/daemon_startup.log"
+    "$LOGGER_DAEMON_BIN" -f "$LOG_DIR/$LOG_FILE_NAME.log" > "$daemon_log" 2>&1 &
     DAEMON_PID=$!
     echo $DAEMON_PID > "$DAEMON_PID_FILE"
     
     # 等待daemon初始化
-    sleep 1
+    sleep 2
     
     # 验证daemon是否正在运行
     if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
         echo "Error: Failed to start logger daemon" >&2
+        echo "Daemon PID: $DAEMON_PID" >&2
+        echo "Log file: $LOG_DIR/$LOG_FILE_NAME.log" >&2
+        echo "Binary: $LOGGER_DAEMON_BIN" >&2
+        if [ -f "$daemon_log" ]; then
+            echo "Daemon startup log:" >&2
+            cat "$daemon_log" >&2
+        fi
         rm -f "$DAEMON_PID_FILE"
         return 1
     fi
@@ -104,7 +140,7 @@ flush_shell_buffer() {
         "$LOGGER_CLIENT_BIN" -p "$DAEMON_PID" -b "$SHELL_BUFFER_FILE" 2>/dev/null
         
         # 清空缓冲区
-        > "$SHELL_BUFFER_FILE"
+        echo "" > "$SHELL_BUFFER_FILE"
         SHELL_BUFFER_COUNT=0
         LAST_FLUSH_TIME=$(date +%s)
     fi
