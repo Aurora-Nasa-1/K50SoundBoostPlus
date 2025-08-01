@@ -30,7 +30,8 @@
     "home": "首页",
     "logs": "日志",
     "settings": "设置",
-    "about": "关于"
+    "about": "关于",
+    "DaxEqualizer": "DAX 均衡器"
   },
   "home": {
     "modules": {

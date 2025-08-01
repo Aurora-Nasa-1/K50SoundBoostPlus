@@ -1,15 +1,19 @@
 {
   "daxEqualizer": {
     "title": "DAX 音频均衡器",
-    "description": "调整 Dolby Audio Processing (DAX) 均衡器设置，优化音频体验",
-    "userMode": "用户模式",
-    "professionalMode": "专业模式",
+    "description": "调整 Dolby Audio Processing (DAX) 均衡器设置，优化音频体验。支持简单模式和高级模式，提供多种预设和自定义调节功能。",
+    "simpleMode": "简单模式",
+    "advancedMode": "高级模式",
     "quickPresets": "快速预设",
     "customEqualizer": "自定义均衡器",
     "presetFlat": "平坦",
     "presetBass": "低音增强",
     "presetVocal": "人声突出",
     "presetTreble": "高音增强",
+    "presetRock": "摇滚",
+    "presetPop": "流行",
+    "presetClassical": "古典",
+    "presetJazz": "爵士",
     "profile": "音频配置文件",
     "preset": "均衡器预设",
     "selectProfile": "选择配置文件",
@@ -39,9 +43,13 @@
     "restoreMessage": "请输入备份文件的完整路径:",
     "restorePlaceholder": "/sdcard/dax-backup-xxx.xml",
     "helpTitle": "DAX 均衡器帮助",
+    "helpSimple": "简单模式提供10段均衡器调节，范围从 -12dB 到 +12dB。包含多种音乐风格预设，适合大多数用户使用。",
     "helpContent1": "智能均衡器 (IEQ): 使用目标值调整音频频率响应，范围从 -1000 到 1000。正值增强频率，负值衰减频率。",
     "helpContent2": "图形均衡器 (GEQ): 使用增益值直接调整各频段，范围从 -12dB 到 +12dB。",
-    "helpContent3": "建议在修改前先备份原始配置。修改后需要重启音频服务或重启设备才能生效。"
+    "helpTips": "使用提示",
+    "helpContent3": "建议在修改前先备份原始配置。修改后需要重启音频服务或重启设备才能生效。",
+    "presetApplied": "已应用预设: {preset}",
+    "defaultConfigCreated": "已创建默认 DAX 配置文件"
   },
   "nav": {
     "DaxEqualizer": "DAX 均衡器"

@@ -1,15 +1,19 @@
 {
   "daxEqualizer": {
     "title": "DAX Audio Equalizer",
-    "description": "Adjust Dolby Audio Processing (DAX) equalizer settings to optimize audio experience",
-    "userMode": "User Mode",
-    "professionalMode": "Professional Mode",
+    "description": "Adjust Dolby Audio Processing (DAX) equalizer settings to optimize audio experience. Supports simple and advanced modes with various presets and custom adjustment features.",
+    "simpleMode": "Simple Mode",
+    "advancedMode": "Advanced Mode",
     "quickPresets": "Quick Presets",
     "customEqualizer": "Custom Equalizer",
     "presetFlat": "Flat",
     "presetBass": "Bass Boost",
     "presetVocal": "Vocal Enhance",
     "presetTreble": "Treble Boost",
+    "presetRock": "Rock",
+    "presetPop": "Pop",
+    "presetClassical": "Classical",
+    "presetJazz": "Jazz",
     "profile": "Audio Profile",
     "preset": "Equalizer Preset",
     "selectProfile": "Select Profile",
@@ -39,9 +43,13 @@
     "restoreMessage": "Please enter the full path to the backup file:",
     "restorePlaceholder": "/sdcard/dax-backup-xxx.xml",
     "helpTitle": "DAX Equalizer Help",
+    "helpSimple": "Simple mode provides a 10-band equalizer with range from -12dB to +12dB. Includes various music style presets suitable for most users.",
     "helpContent1": "Intelligent Equalizer (IEQ): Uses target values to adjust audio frequency response, ranging from -1000 to 1000. Positive values enhance frequencies, negative values attenuate them.",
     "helpContent2": "Graphic Equalizer (GEQ): Directly adjusts frequency bands using gain values, ranging from -12dB to +12dB.",
-    "helpContent3": "It's recommended to backup the original configuration before making changes. After modification, you need to restart the audio service or reboot the device for changes to take effect."
+    "helpTips": "Usage Tips",
+    "helpContent3": "It's recommended to backup the original configuration before making changes. After modification, you need to restart the audio service or reboot the device for changes to take effect.",
+    "presetApplied": "Applied preset: {preset}",
+    "defaultConfigCreated": "Default DAX configuration file created"
   },
   "nav": {
     "DaxEqualizer": "DAX Equalizer"
