@@ -881,21 +881,21 @@ dev_webui_preview() {
         npm ci || { error "Failed to install WebUI dependencies"; exit 1; }
     fi
     
+    # Setup cleanup trap (always needed for DEV_SERVER_PID)
+    cleanup_dev() {
+        info "Cleaning up development environment..."
+        [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null || true
+        [ -n "$DEV_SERVER_PID" ] && kill $DEV_SERVER_PID 2>/dev/null || true
+        rm -rf "$temp_webui_dir"
+        exit 0
+    }
+    trap cleanup_dev INT TERM EXIT
+    
     # Start file watcher in background if available
     if [ "$file_watcher_available" = "true" ] && [ -n "$webui_overlay_src" ] && [ -d "$PROJECT_ROOT/$webui_overlay_src" ]; then
         info "Starting file watcher for overlay changes..."
         start_overlay_watcher "$PROJECT_ROOT/$webui_overlay_src" "$temp_webui_dir" &
         WATCHER_PID=$!
-        
-        # Setup cleanup trap
-        cleanup_dev() {
-            info "Cleaning up development environment..."
-            [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null || true
-            [ -n "$DEV_SERVER_PID" ] && kill $DEV_SERVER_PID 2>/dev/null || true
-            rm -rf "$temp_webui_dir"
-            exit 0
-        }
-        trap cleanup_dev INT TERM EXIT
     fi
     
     # Set module ID for development
@@ -932,12 +932,30 @@ dev_webui_preview() {
                 # Check if dev server is still running
                 if ! kill -0 $DEV_SERVER_PID 2>/dev/null; then
                     warn "Development server stopped unexpectedly"
-                    break
+                    info "Attempting to restart development server..."
+                    
+                    # Try to restart the server
+                    npm run dev &
+                    DEV_SERVER_PID=$!
+                    sleep 3
+                    
+                    if kill -0 $DEV_SERVER_PID 2>/dev/null; then
+                        success "Development server restarted successfully (PID: $DEV_SERVER_PID)"
+                        info "Server should be available at: http://localhost:5173"
+                    else
+                        error "Failed to restart development server"
+                        info "Please check for errors and try again"
+                        break
+                    fi
                 fi
             done
         }
         
+        # Start the wait loop
         wait_for_interrupt
+        
+        # If we reach here, something went wrong
+        warn "Development mode exiting..."
     else
         error "Failed to start development server"
         exit 1

@@ -30,8 +30,7 @@
     "home": "Home",
     "logs": "Logs",
     "settings": "Settings",
-    "about": "About",
-    "DaxEqualizer": "DAX Equalizer"
+    "about": "About"
   },
   "home": {
     "modules": {

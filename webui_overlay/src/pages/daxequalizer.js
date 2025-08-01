@@ -7,51 +7,125 @@ class DaxequalizerPage {
       currentPreset: null,
       bands: [],
       loading: false,
-      isDirty: false
+      isDirty: false,
+      mode: 'user', // 'user' or 'professional'
+      activeEqType: 'ieq' // 'ieq' or 'geq'
     };
     this.eventListeners = [];
     this.daxFilePath = `${window.core.MODULE_PATH}/system/vendor/etc/dolby/dax-default.xml`;
+    
+    // 标准化频率范围
+    this.standardFrequencies = [47, 141, 234, 328, 469, 656, 844, 1031, 1313, 1688, 2250, 3000, 3750, 4688, 5813, 7125, 9000, 11250, 13875, 19688];
+    
+    // 用户模式简化频率（10段）
+    this.userFrequencies = [47, 141, 328, 656, 1031, 1688, 3000, 4688, 7125, 13875];
   }
 
   async render() {
+    // 导入CSS样式
+    const cssLink = document.createElement('link');
+    cssLink.rel = 'stylesheet';
+    cssLink.href = './assets/css/pages/dax-equalizer.css';
+    if (!document.querySelector('link[href="./assets/css/pages/dax-equalizer.css"]')) {
+      document.head.appendChild(cssLink);
+    }
+
     return `
-        <div class="dax-controls">
-          <div class="profile-selector">
-            <label>${window.i18n.t('daxEqualizer.profile')}:</label>
-            <select id="profile-select" class="md-select">
-              <option value="">${window.i18n.t('daxEqualizer.selectProfile')}</option>
-            </select>
+      <div class="dax-equalizer">
+        <div class="dax-header">
+          <div class="header-content">
+            <h2>${window.i18n.t('daxEqualizer.title')}</h2>
+            <p class="dax-description">${window.i18n.t('daxEqualizer.description')}</p>
           </div>
-
-          <div class="preset-selector">
-            <label>${window.i18n.t('daxEqualizer.preset')}:</label>
-            <select id="preset-select" class="md-select">
-              <option value="">${window.i18n.t('daxEqualizer.selectPreset')}</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="equalizer-container">
-          <div class="eq-type-tabs">
-            <button id="ieq-tab" class="tab-button active">${window.i18n.t('daxEqualizer.ieqTab')}</button>
-            <button id="geq-tab" class="tab-button">${window.i18n.t('daxEqualizer.geqTab')}</button>
-          </div>
-
-          <div class="eq-content">
-            <div id="ieq-panel" class="eq-panel active">
-              <div class="eq-bands" id="ieq-bands"></div>
-            </div>
-            <div id="geq-panel" class="eq-panel">
-              <div class="eq-bands" id="geq-bands"></div>
+          
+          <!-- 模式切换 -->
+          <div class="mode-switcher">
+            <div class="mode-tabs">
+              <button id="user-mode-btn" class="mode-tab active" data-mode="user">
+                <span class="material-symbols-rounded">tune</span>
+                <span>${window.i18n.t('daxEqualizer.userMode')}</span>
+              </button>
+              <button id="pro-mode-btn" class="mode-tab" data-mode="professional">
+                <span class="material-symbols-rounded">settings</span>
+                <span>${window.i18n.t('daxEqualizer.professionalMode')}</span>
+              </button>
             </div>
           </div>
         </div>
 
+        <!-- 用户模式界面 -->
+        <div id="user-mode-content" class="mode-content active">
+          <div class="user-eq-container">
+            <div class="eq-presets">
+              <h3>${window.i18n.t('daxEqualizer.quickPresets')}</h3>
+              <div class="preset-buttons">
+                <button class="preset-btn" data-preset="flat">${window.i18n.t('daxEqualizer.presetFlat')}</button>
+                <button class="preset-btn" data-preset="bass">${window.i18n.t('daxEqualizer.presetBass')}</button>
+                <button class="preset-btn" data-preset="vocal">${window.i18n.t('daxEqualizer.presetVocal')}</button>
+                <button class="preset-btn" data-preset="treble">${window.i18n.t('daxEqualizer.presetTreble')}</button>
+              </div>
+            </div>
+            
+            <div class="user-equalizer">
+              <h3>${window.i18n.t('daxEqualizer.customEqualizer')}</h3>
+              <div class="user-eq-bands" id="user-eq-bands"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 专业模式界面 -->
+        <div id="professional-mode-content" class="mode-content">
+          <div class="pro-controls">
+            <div class="profile-selector">
+              <label>${window.i18n.t('daxEqualizer.profile')}:</label>
+              <select id="profile-select" class="md-select">
+                <option value="">${window.i18n.t('daxEqualizer.selectProfile')}</option>
+              </select>
+            </div>
+
+            <div class="preset-selector">
+              <label>${window.i18n.t('daxEqualizer.preset')}:</label>
+              <select id="preset-select" class="md-select">
+                <option value="">${window.i18n.t('daxEqualizer.selectPreset')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="equalizer-container">
+            <div class="eq-type-tabs">
+              <button id="ieq-tab" class="tab-button active">${window.i18n.t('daxEqualizer.ieqTab')}</button>
+              <button id="geq-tab" class="tab-button">${window.i18n.t('daxEqualizer.geqTab')}</button>
+            </div>
+
+            <div class="eq-content">
+              <div id="ieq-panel" class="eq-panel active">
+                <div class="eq-bands" id="ieq-bands"></div>
+              </div>
+              <div id="geq-panel" class="eq-panel">
+                <div class="eq-bands" id="geq-bands"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
         <div class="dax-actions">
-          <button id="reset-btn" class="md-button secondary">${window.i18n.t('daxEqualizer.reset')}</button>
-          <button id="save-btn" class="md-button primary" disabled>${window.i18n.t('daxEqualizer.save')}</button>
-          <button id="backup-btn" class="md-button secondary">${window.i18n.t('daxEqualizer.backup')}</button>
-          <button id="restore-btn" class="md-button secondary">${window.i18n.t('daxEqualizer.restore')}</button>
+          <button id="reset-btn" class="md-button secondary">
+            <span class="material-symbols-rounded">refresh</span>
+            ${window.i18n.t('daxEqualizer.reset')}
+          </button>
+          <button id="save-btn" class="md-button primary" disabled>
+            <span class="material-symbols-rounded">save</span>
+            ${window.i18n.t('daxEqualizer.save')}
+          </button>
+          <button id="backup-btn" class="md-button secondary">
+            <span class="material-symbols-rounded">backup</span>
+            ${window.i18n.t('daxEqualizer.backup')}
+          </button>
+          <button id="restore-btn" class="md-button secondary">
+            <span class="material-symbols-rounded">restore</span>
+            ${window.i18n.t('daxEqualizer.restore')}
+          </button>
         </div>
 
         <div class="loading-overlay" id="loading-overlay" style="display: none;">
@@ -69,25 +143,50 @@ class DaxequalizerPage {
   }
 
   setupEventListeners() {
-    // Profile selector
+    // 模式切换
+    document.getElementById('user-mode-btn').addEventListener('click', () => {
+      this.switchMode('user');
+    });
+    document.getElementById('pro-mode-btn').addEventListener('click', () => {
+      this.switchMode('professional');
+    });
+
+    // 用户模式预设按钮
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        this.applyUserPreset(e.target.dataset.preset);
+      });
+    });
+
+    // Profile selector (专业模式)
     const profileSelect = document.getElementById('profile-select');
-    profileSelect.addEventListener('change', (e) => {
-      this.selectProfile(e.target.value);
-    });
+    if (profileSelect) {
+      profileSelect.addEventListener('change', (e) => {
+        this.selectProfile(e.target.value);
+      });
+    }
 
-    // Preset selector
+    // Preset selector (专业模式)
     const presetSelect = document.getElementById('preset-select');
-    presetSelect.addEventListener('change', (e) => {
-      this.selectPreset(e.target.value);
-    });
+    if (presetSelect) {
+      presetSelect.addEventListener('change', (e) => {
+        this.selectPreset(e.target.value);
+      });
+    }
 
-    // Tab switching
-    document.getElementById('ieq-tab').addEventListener('click', () => {
-      this.switchTab('ieq');
-    });
-    document.getElementById('geq-tab').addEventListener('click', () => {
-      this.switchTab('geq');
-    });
+    // Tab switching (专业模式)
+    const ieqTab = document.getElementById('ieq-tab');
+    const geqTab = document.getElementById('geq-tab');
+    if (ieqTab) {
+      ieqTab.addEventListener('click', () => {
+        this.switchTab('ieq');
+      });
+    }
+    if (geqTab) {
+      geqTab.addEventListener('click', () => {
+        this.switchTab('geq');
+      });
+    }
 
     // Action buttons
     document.getElementById('reset-btn').addEventListener('click', () => {
@@ -206,10 +305,71 @@ class DaxequalizerPage {
     this.data.currentPreset = this.data.presets.find(p => p.id === presetId);
     if (this.data.currentPreset) {
       this.data.bands = [...this.data.currentPreset.bands];
+      this.data.activeEqType = this.data.currentPreset.type;
       this.renderEqualizer();
-      this.switchTab(this.data.currentPreset.type);
+      if (this.data.mode === 'professional') {
+        this.switchTab(this.data.currentPreset.type);
+      }
     }
-    window.core.logDebug(`Selected preset: ${presetId}`, 'DAX_EQ');
+    if (window.core.isDebugMode()) {
+      window.core.logDebug(`Selected preset: ${presetId}`, 'DAX_EQ');
+    }
+  }
+
+  // 模式切换
+  switchMode(mode) {
+    this.data.mode = mode;
+    
+    // 更新模式按钮状态
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.mode === mode);
+    });
+    
+    // 切换内容显示
+    document.querySelectorAll('.mode-content').forEach(content => {
+      content.classList.toggle('active', content.id === `${mode}-mode-content`);
+    });
+    
+    // 重新渲染均衡器
+    this.renderEqualizer();
+    
+    if (window.core.isDebugMode()) {
+      window.core.logDebug(`Switched to ${mode} mode`, 'DAX_EQ');
+    }
+  }
+
+  // 应用用户模式预设
+  applyUserPreset(presetType) {
+    const presetValues = this.getUserPresetValues(presetType);
+    
+    // 更新用户频率的值
+    this.data.bands = this.userFrequencies.map((freq, index) => ({
+      frequency: freq,
+      gain: presetValues[index] || 0
+    }));
+    
+    this.renderUserEqualizer();
+    this.markDirty();
+    
+    // 更新预设按钮状态
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.preset === presetType);
+    });
+    
+    if (window.core.isDebugMode()) {
+      window.core.logDebug(`Applied user preset: ${presetType}`, 'DAX_EQ');
+    }
+  }
+
+  // 获取用户预设值
+  getUserPresetValues(presetType) {
+    const presets = {
+      flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      bass: [6, 4, 2, 0, -1, -2, -1, 0, 1, 2],
+      vocal: [-2, -1, 1, 3, 4, 3, 2, 1, -1, -2],
+      treble: [-2, -1, 0, 1, 2, 3, 4, 5, 4, 3]
+    };
+    return presets[presetType] || presets.flat;
   }
 
   switchTab(type) {
@@ -223,10 +383,42 @@ class DaxequalizerPage {
   }
 
   renderEqualizer() {
+    if (this.data.mode === 'user') {
+      this.renderUserEqualizer();
+    } else {
+      this.renderProfessionalEqualizer();
+    }
+  }
+
+  // 渲染用户模式均衡器
+  renderUserEqualizer() {
+    const container = document.getElementById('user-eq-bands');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // 如果没有数据，初始化为平坦响应
+    if (this.data.bands.length === 0) {
+      this.data.bands = this.userFrequencies.map(freq => ({
+        frequency: freq,
+        gain: 0
+      }));
+    }
+    
+    this.data.bands.forEach((band, index) => {
+      const bandElement = this.createUserBandSlider(band, index);
+      container.appendChild(bandElement);
+    });
+  }
+
+  // 渲染专业模式均衡器
+  renderProfessionalEqualizer() {
     if (!this.data.currentPreset) return;
     
     const type = this.data.currentPreset.type;
     const container = document.getElementById(`${type}-bands`);
+    if (!container) return;
+    
     container.innerHTML = '';
     
     this.data.bands.forEach((band, index) => {
@@ -235,19 +427,62 @@ class DaxequalizerPage {
     });
   }
 
+  // 创建用户模式滑块
+  createUserBandSlider(band, index) {
+    const div = document.createElement('div');
+    div.className = 'user-eq-band';
+    
+    const freqLabel = this.formatFrequency(band.frequency);
+    
+    div.innerHTML = `
+      <div class="band-header">
+        <span class="frequency-label">${freqLabel}</span>
+        <span class="gain-value" id="user-value-${index}">${band.gain > 0 ? '+' : ''}${band.gain}dB</span>
+      </div>
+      <div class="slider-container">
+        <input type="range" 
+               class="user-eq-slider" 
+               id="user-slider-${index}"
+               min="-12" 
+               max="12" 
+               step="0.5"
+               value="${band.gain}">
+        <div class="slider-track">
+          <div class="slider-fill" style="height: ${((band.gain + 12) / 24) * 100}%"></div>
+        </div>
+      </div>
+    `;
+    
+    const slider = div.querySelector('.user-eq-slider');
+    const valueSpan = div.querySelector('.gain-value');
+    const sliderFill = div.querySelector('.slider-fill');
+    
+    slider.addEventListener('input', (e) => {
+      const newValue = parseFloat(e.target.value);
+      this.data.bands[index].gain = newValue;
+      valueSpan.textContent = `${newValue > 0 ? '+' : ''}${newValue}dB`;
+      sliderFill.style.height = `${((newValue + 12) / 24) * 100}%`;
+      this.markDirty();
+    });
+    
+    return div;
+  }
+
+  // 创建专业模式滑块
   createBandSlider(band, index, type) {
     const div = document.createElement('div');
-    div.className = 'eq-band';
+    div.className = 'eq-band professional';
     
     const valueKey = type === 'ieq' ? 'target' : 'gain';
     const minValue = type === 'ieq' ? -1000 : -12;
     const maxValue = type === 'ieq' ? 1000 : 12;
     const step = type === 'ieq' ? 10 : 0.1;
+    const unit = type === 'ieq' ? '' : 'dB';
     
     div.innerHTML = `
       <div class="band-info">
-        <span class="frequency">${band.frequency}Hz</span>
-        <span class="value" id="value-${index}">${band[valueKey]}</span>
+        <span class="frequency">${this.formatFrequency(band.frequency)}</span>
+        <span class="value" id="value-${index}">${band[valueKey]}${unit}</span>
       </div>
       <input type="range" 
              class="eq-slider" 
@@ -264,11 +499,19 @@ class DaxequalizerPage {
     slider.addEventListener('input', (e) => {
       const newValue = parseFloat(e.target.value);
       this.data.bands[index][valueKey] = newValue;
-      valueSpan.textContent = newValue;
+      valueSpan.textContent = `${newValue}${unit}`;
       this.markDirty();
     });
     
     return div;
+  }
+
+  // 格式化频率显示
+  formatFrequency(freq) {
+    if (freq >= 1000) {
+      return `${(freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1)}kHz`;
+    }
+    return `${freq}Hz`;
   }
 
   markDirty() {
@@ -276,20 +519,71 @@ class DaxequalizerPage {
     document.getElementById('save-btn').disabled = false;
   }
 
-  async resetEqualizer() {
-    if (!this.data.currentPreset) return;
+  // 显示加载状态
+  showLoading(show = true) {
+    const container = document.querySelector('.dax-equalizer');
+    if (!container) return;
     
-    const confirmed = await window.DialogManager.showConfirm(
+    let overlay = container.querySelector('.loading-overlay');
+    
+    if (show) {
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = '<div class="loading-spinner"></div>';
+        container.style.position = 'relative';
+        container.appendChild(overlay);
+      }
+    } else {
+      if (overlay) {
+        overlay.remove();
+      }
+    }
+  }
+
+  async resetEqualizer() {
+    const confirmed = await window.DialogManager.confirm(
       window.i18n.t('daxEqualizer.resetTitle'),
       window.i18n.t('daxEqualizer.resetMessage')
     );
     
-    if (confirmed) {
-      this.data.bands = [...this.data.currentPreset.bands];
-      this.renderEqualizer();
-      this.data.isDirty = false;
-      document.getElementById('save-btn').disabled = true;
-      window.core.showToast(window.i18n.t('daxEqualizer.resetSuccess'), 'success');
+    if (!confirmed) return;
+    
+    if (this.data.mode === 'user') {
+      // 用户模式重置为平坦响应
+      this.data.bands = this.userFrequencies.map(freq => ({
+        frequency: freq,
+        gain: 0
+      }));
+      this.renderUserEqualizer();
+      
+      // 清除预设按钮状态
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.querySelector('.preset-btn[data-preset="flat"]')?.classList.add('active');
+    } else {
+      // 专业模式重置
+      if (!this.data.currentPreset) return;
+      
+      const originalPreset = this.data.presets.find(p => p.id === this.data.currentPreset.id);
+      if (originalPreset) {
+        this.data.bands = [...originalPreset.bands];
+        this.renderProfessionalEqualizer();
+      }
+    }
+    
+    this.data.isDirty = false;
+     
+     const saveBtn = document.getElementById('save-btn');
+     if (saveBtn) {
+       saveBtn.classList.remove('dirty');
+     }
+     
+     window.core.showToast(window.i18n.t('daxEqualizer.resetSuccess'));
+    
+    if (window.core.isDebugMode()) {
+      window.core.logDebug('Equalizer reset completed', 'DAX_EQ');
     }
   }
 

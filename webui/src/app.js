@@ -321,7 +321,7 @@ class App {
 
       if (pageInstance) {
         // 加载页面CSS
-        const cssPath = `./assets/css/pages/${page}.css`;
+        const cssPath = this.getPageCSSPath(page);
         try {
           await this.loadCSS(cssPath);
         } catch (error) {
@@ -437,6 +437,19 @@ class App {
   getPageClassName(page) {
     // 将页面名转换为类名 (home -> HomePage, about -> AboutPage)
     return page.charAt(0).toUpperCase() + page.slice(1) + 'Page';
+  }
+
+  getPageCSSPath(page) {
+    // 检查是否在开发环境
+    const isDev = import.meta.env?.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isDev) {
+      // 开发环境使用绝对路径
+      return `/src/assets/css/pages/${page}.css`;
+    } else {
+      // 生产环境使用相对路径
+      return `./assets/css/pages/${page}.css`;
+    }
   }
 
   async loadSettings() {

@@ -215,9 +215,12 @@ class LogsPage {
     if (level === 'all') {
       this.filteredLogs = [...this.logs];
     } else {
-      // 转换为大写进行匹配，因为模拟数据中的级别是大写
-      const upperLevel = level.toUpperCase();
-      this.filteredLogs = this.logs.filter(log => log.level === upperLevel);
+      // 统一转换为小写进行匹配，确保兼容性
+      const lowerLevel = level.toLowerCase();
+      this.filteredLogs = this.logs.filter(log => {
+        const logLevel = (log.level || '').toLowerCase();
+        return logLevel === lowerLevel;
+      });
     }
     
     // 重置虚拟滚动状态
@@ -463,10 +466,12 @@ class LogsPage {
   parseLogLine(line) {
     if (!line || !line.trim()) return null;
 
-    // 尝试解析不同格式的日志
+    const trimmedLine = line.trim();
+    let match;
+
     // 格式1: 2024-01-01 12:00:00 [INFO] 消息内容
-    let match = line.match(
-      /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*\[(INFO|WARN|ERROR|DEBUG)\]\s*(.*)$/
+    match = trimmedLine.match(
+      /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\s*\[([A-Z]+)\]\s*(.*)$/i
     );
     if (match) {
       return {
@@ -477,8 +482,8 @@ class LogsPage {
     }
 
     // 格式2: [INFO] 2024-01-01 12:00:00 消息内容
-    match = line.match(
-      /^\[(INFO|WARN|ERROR|DEBUG)\]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*(.*)$/
+    match = trimmedLine.match(
+      /^\[([A-Z]+)\]\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\s*(.*)$/i
     );
     if (match) {
       return {
@@ -488,21 +493,111 @@ class LogsPage {
       };
     }
 
-    // 格式3: 时间戳格式 1640995200 INFO message
-    match = line.match(/^(\d{10})\s+(\w+)\s+(.*)$/);
+    // 格式3: 2024-01-01T12:00:00.000Z INFO 消息内容 (ISO格式)
+    match = trimmedLine.match(
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z?)\s+([A-Z]+)\s+(.*)$/i
+    );
     if (match) {
       return {
-        timestamp: new Date(parseInt(match[1]) * 1000),
+        timestamp: new Date(match[1]),
         level: match[2].toLowerCase(),
         message: match[3].trim(),
       };
     }
 
-    // 格式4: 简单格式，只有消息内容
+    // 格式4: INFO 2024-01-01 12:00:00 消息内容
+    match = trimmedLine.match(
+      /^([A-Z]+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\s+(.*)$/i
+    );
+    if (match) {
+      return {
+        timestamp: new Date(match[2]),
+        level: match[1].toLowerCase(),
+        message: match[3].trim(),
+      };
+    }
+
+    // 格式5: 时间戳格式 1640995200 INFO message
+    match = trimmedLine.match(/^(\d{10,13})\s+([A-Z]+)\s+(.*)$/i);
+    if (match) {
+      const timestamp = match[1].length === 10 ? parseInt(match[1]) * 1000 : parseInt(match[1]);
+      return {
+        timestamp: new Date(timestamp),
+        level: match[2].toLowerCase(),
+        message: match[3].trim(),
+      };
+    }
+
+    // 格式6: 2024/01/01 12:00:00 INFO 消息内容 (斜杠分隔日期)
+    match = trimmedLine.match(
+      /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\s+([A-Z]+)\s+(.*)$/i
+    );
+    if (match) {
+      return {
+        timestamp: new Date(match[1].replace(/\//g, '-')),
+        level: match[2].toLowerCase(),
+        message: match[3].trim(),
+      };
+    }
+
+    // 格式7: Jan 01 12:00:00 INFO 消息内容 (syslog格式)
+    match = trimmedLine.match(
+      /^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+([A-Z]+)\s+(.*)$/i
+    );
+    if (match) {
+      const currentYear = new Date().getFullYear();
+      const dateStr = `${currentYear} ${match[1]}`;
+      return {
+        timestamp: new Date(dateStr),
+        level: match[2].toLowerCase(),
+        message: match[3].trim(),
+      };
+    }
+
+    // 格式8: 12:00:00.123 [INFO] 消息内容 (只有时间)
+    match = trimmedLine.match(
+      /^(\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\s*\[([A-Z]+)\]\s*(.*)$/i
+    );
+    if (match) {
+      const today = new Date();
+      const timeStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${match[1]}`;
+      return {
+        timestamp: new Date(timeStr),
+        level: match[2].toLowerCase(),
+        message: match[3].trim(),
+      };
+    }
+
+    // 格式9: 检测行中是否包含日志级别关键词
+    const levelKeywords = ['ERROR', 'WARN', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'FATAL'];
+    for (const keyword of levelKeywords) {
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+      if (regex.test(trimmedLine)) {
+        // 尝试提取时间戳
+        const timeMatch = trimmedLine.match(/(\d{4}[-\/]\d{2}[-\/]\d{2}[\sT]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)|\b(\d{10,13})\b/);
+        let timestamp = new Date();
+        if (timeMatch) {
+          if (timeMatch[1]) {
+            timestamp = new Date(timeMatch[1].replace(/\//g, '-'));
+          } else if (timeMatch[2]) {
+            const ts = timeMatch[2].length === 10 ? parseInt(timeMatch[2]) * 1000 : parseInt(timeMatch[2]);
+            timestamp = new Date(ts);
+          }
+        }
+        
+        return {
+          timestamp: timestamp,
+          level: keyword.toLowerCase() === 'warning' ? 'warn' : keyword.toLowerCase(),
+          message: trimmedLine,
+        };
+      }
+    }
+
+    // 格式10: 默认格式，将整行作为消息内容
     return {
       timestamp: new Date(),
       level: "info",
-      message: line.trim(),
+      message: trimmedLine,
     };
   }
 
