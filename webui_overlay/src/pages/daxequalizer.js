@@ -15,12 +15,6 @@ class DaxequalizerPage {
 
   async render() {
     return `
-      <div class="dax-equalizer">
-        <div class="dax-header">
-          <h2>${window.i18n.t('daxEqualizer.title')}</h2>
-          <p class="dax-description">${window.i18n.t('daxEqualizer.description')}</p>
-        </div>
-
         <div class="dax-controls">
           <div class="profile-selector">
             <label>${window.i18n.t('daxEqualizer.profile')}:</label>
@@ -114,14 +108,21 @@ class DaxequalizerPage {
     this.showLoading(true);
     try {
       const result = await window.core.exec(`cat "${this.daxFilePath}"`);
-      if (result.success) {
+      if (result.errno === 0 && result.stdout) {
         this.parseDaxXml(result.stdout);
         this.populateSelectors();
       } else {
-        window.core.showError(window.i18n.t('daxEqualizer.loadError'), result.stderr);
+        const errorMsg = result.stderr || 'DAX配置文件不存在或无法读取';
+        window.core.showError(window.i18n.t('daxEqualizer.loadError'), errorMsg);
+        if (window.core.isDebugMode()) {
+          window.core.logDebug(`DAX config load failed: errno=${result.errno}, stderr=${result.stderr}`, 'DAX');
+        }
       }
     } catch (error) {
       window.core.showError(window.i18n.t('daxEqualizer.loadError'), error.message);
+      if (window.core.isDebugMode()) {
+        window.core.logDebug(`DAX config load exception: ${error.message}`, 'DAX');
+      }
     }
     this.showLoading(false);
   }
@@ -312,14 +313,14 @@ class DaxequalizerPage {
       
       // Write to temp file
       const writeResult = await window.core.exec(`echo '${escapedXml}' > "${tempFile}"`);
-      if (!writeResult.success) {
-        throw new Error('Failed to create temporary file');
+      if (writeResult.errno !== 0) {
+        throw new Error(`Failed to create temporary file: ${writeResult.stderr}`);
       }
       
       // Copy temp file to target location
       const copyResult = await window.core.exec(`cp "${tempFile}" "${this.daxFilePath}"`);
-      if (!copyResult.success) {
-        throw new Error('Failed to copy file to target location');
+      if (copyResult.errno !== 0) {
+        throw new Error(`Failed to copy file to target location: ${copyResult.stderr}`);
       }
       
       // Clean up temp file
@@ -346,8 +347,8 @@ class DaxequalizerPage {
     try {
       // Read the current XML file
       const result = await window.core.exec(`cat "${this.daxFilePath}"`);
-      if (!result.success) {
-        throw new Error('Failed to read current XML file');
+      if (result.errno !== 0 || !result.stdout) {
+        throw new Error(`Failed to read current XML file: ${result.stderr}`);
       }
 
       const parser = new DOMParser();
@@ -455,7 +456,7 @@ class DaxequalizerPage {
       const backupPath = `/sdcard/dax-backup-${timestamp}.xml`;
       
       const result = await window.core.exec(`cp "${this.daxFilePath}" "${backupPath}"`);
-      if (result.success) {
+      if (result.errno === 0) {
         window.core.showToast(window.i18n.t('daxEqualizer.backupSuccess', { path: backupPath }), 'success');
       } else {
         window.core.showError(window.i18n.t('daxEqualizer.backupError'), result.stderr);
@@ -476,7 +477,7 @@ class DaxequalizerPage {
     
     try {
       const result = await window.core.exec(`cp "${input}" "${this.daxFilePath}"`);
-      if (result.success) {
+      if (result.errno === 0) {
         window.core.showToast(window.i18n.t('daxEqualizer.restoreSuccess'), 'success');
         await this.loadDaxConfig();
       } else {
