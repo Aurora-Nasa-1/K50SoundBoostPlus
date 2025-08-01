@@ -1,0 +1,47 @@
+{
+  "daxEqualizer": {
+    "title": "DAX 音频均衡器",
+    "description": "调整 Dolby Audio Processing (DAX) 均衡器设置，优化音频体验",
+    "profile": "音频配置文件",
+    "preset": "均衡器预设",
+    "selectProfile": "选择配置文件",
+    "selectPreset": "选择预设",
+    "ieqTab": "智能均衡器 (IEQ)",
+    "geqTab": "图形均衡器 (GEQ)",
+    "reset": "重置",
+    "save": "保存设置",
+    "backup": "备份配置",
+    "restore": "恢复配置",
+    "refresh": "刷新",
+    "help": "帮助",
+    "loading": "加载中...",
+    "loadError": "加载 DAX 配置失败",
+    "saveError": "保存配置失败",
+    "saveSuccess": "配置保存成功",
+    "backupError": "备份配置失败",
+    "backupSuccess": "配置已备份到: {path}",
+    "restoreError": "恢复配置失败",
+    "restoreSuccess": "配置恢复成功",
+    "resetTitle": "重置均衡器",
+    "resetMessage": "确定要重置当前均衡器设置吗？所有未保存的更改将丢失。",
+    "resetSuccess": "均衡器已重置",
+    "saveTitle": "保存配置",
+    "saveMessage": "确定要保存当前均衡器设置吗？这将修改系统配置文件。",
+    "restoreTitle": "恢复配置",
+    "restoreMessage": "请输入备份文件的完整路径:",
+    "restorePlaceholder": "/sdcard/dax-backup-xxx.xml",
+    "helpTitle": "DAX 均衡器帮助",
+    "helpContent1": "智能均衡器 (IEQ): 使用目标值调整音频频率响应，范围从 -1000 到 1000。正值增强频率，负值衰减频率。",
+    "helpContent2": "图形均衡器 (GEQ): 使用增益值直接调整各频段，范围从 -12dB 到 +12dB。",
+    "helpContent3": "建议在修改前先备份原始配置。修改后需要重启音频服务或重启设备才能生效。"
+  },
+  "nav": {
+    "DaxEqualizer": "DAX 均衡器"
+  },
+  "common": {
+    "close": "关闭",
+    "cancel": "取消",
+    "confirm": "确认",
+    "ok": "确定"
+  }
+}

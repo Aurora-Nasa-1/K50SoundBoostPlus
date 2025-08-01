@@ -695,107 +695,144 @@ for (auto& t : setup_threads) {
 watcher.start();
 ```
 
-## 与 Logger API 集成
+## 高级事件处理
 
 ```cpp
-#include "logger_api.hpp"
 #include "filewatcher_api.hpp"
+#include <iostream>
+#include <fstream>
 
-class LoggingFileWatcher {
+class AdvancedFileWatcher {
 private:
-    std::unique_ptr<InternalLogger> logger_;
     FileWatcher watcher_;
+    std::ofstream event_log_;
     
 public:
-    LoggingFileWatcher(const std::string& log_path) {
-        LoggerConfig config;
-        config.log_path = log_path;
-        config.min_level = LogLevel::INFO;
-        logger_ = std::make_unique<InternalLogger>(config);
+    AdvancedFileWatcher(const std::string& log_path) 
+        : event_log_(log_path, std::ios::app) {
+        if (!event_log_.is_open()) {
+            throw std::runtime_error("Failed to open event log file");
+        }
         
-        logger_->info("LoggingFileWatcher initialized");
+        log_event("AdvancedFileWatcher initialized");
+    }
+    
+    ~AdvancedFileWatcher() {
+        if (event_log_.is_open()) {
+            log_event("AdvancedFileWatcher destroyed");
+            event_log_.close();
+        }
     }
     
     bool add_monitored_path(const std::string& path, uint32_t event_mask) {
-        logger_->infof("Adding watch for path: %s", path.c_str());
+        log_event("Adding watch for path: " + path);
         
         bool success = watcher_.add_watch(path, event_mask,
             [this](const FileEvent& event) {
-                this->log_file_event(event);
+                this->handle_file_event(event);
             });
         
         if (success) {
-            logger_->infof("Successfully added watch for: %s", path.c_str());
+            log_event("Successfully added watch for: " + path);
         } else {
-            logger_->errorf("Failed to add watch for: %s", path.c_str());
+            log_event("Failed to add watch for: " + path);
         }
         
         return success;
     }
     
     bool start() {
-        logger_->info("Starting file watcher");
+        log_event("Starting file watcher");
         
         if (watcher_.start()) {
-            logger_->info("File watcher started successfully");
+            log_event("File watcher started successfully");
             return true;
         } else {
-            logger_->error("Failed to start file watcher");
+            log_event("Failed to start file watcher");
             return false;
         }
     }
     
     void stop() {
-        logger_->info("Stopping file watcher");
+        log_event("Stopping file watcher");
         watcher_.stop();
-        logger_->info("File watcher stopped");
+        log_event("File watcher stopped");
     }
     
 private:
-    void log_file_event(const FileEvent& event) {
+    void log_event(const std::string& message) {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        
+        event_log_ << "[" << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S")
+                   << "] " << message << std::endl;
+        event_log_.flush();
+    }
+    
+    void handle_file_event(const FileEvent& event) {
         std::string event_str = event_type_to_string(event.type);
+        std::string message;
         
         switch (event.type) {
             case EventType::CREATE:
-                logger_->infof("File created: %s", event.path.c_str());
+                message = "File created: " + event.path;
                 break;
             case EventType::MODIFY:
-                logger_->infof("File modified: %s", event.path.c_str());
+                message = "File modified: " + event.path;
                 break;
             case EventType::DELETE:
-                logger_->warnf("File deleted: %s", event.path.c_str());
+                message = "File deleted: " + event.path;
                 break;
             case EventType::MOVED_FROM:
             case EventType::MOVED_TO:
-                logger_->infof("File moved: %s (cookie: %u)", 
-                              event.path.c_str(), event.cookie);
+                message = "File moved: " + event.path + " (cookie: " + std::to_string(event.cookie) + ")";
                 break;
             default:
-                logger_->debugf("File event %s: %s", 
-                               event_str.c_str(), event.path.c_str());
+                message = "File event " + event_str + ": " + event.path;
                 break;
+        }
+        
+        log_event(message);
+        
+        // 执行特定的事件处理逻辑
+        process_event_action(event);
+    }
+    
+    void process_event_action(const FileEvent& event) {
+        // 根据事件类型执行不同的操作
+        if (event.type == EventType::CREATE && event.path.ends_with(".conf")) {
+            log_event("Configuration file created, triggering reload");
+            // 触发配置重载逻辑
+        } else if (event.type == EventType::DELETE && event.path.find("/critical/") != std::string::npos) {
+            log_event("Critical file deleted, sending alert");
+            // 发送警报逻辑
         }
     }
 };
 
 // 使用示例
 int main() {
-    LoggingFileWatcher watcher("/data/local/tmp/filewatcher.log");
-    
-    // 添加监控路径
-    watcher.add_monitored_path("/data/config", 
-        make_event_mask(EventType::MODIFY, EventType::CREATE, EventType::DELETE));
-    
-    watcher.add_monitored_path("/data/critical",
-        make_event_mask(EventType::DELETE, EventType::MOVED_FROM));
-    
-    // 启动监控
-    if (watcher.start()) {
-        // 运行一段时间
-        std::this_thread::sleep_for(std::chrono::minutes(30));
+    try {
+        AdvancedFileWatcher watcher("/data/local/tmp/filewatcher.log");
         
-        // 停止监控
-        watcher.stop();
+        // 添加监控路径
+        watcher.add_monitored_path("/data/config", 
+            make_event_mask(EventType::MODIFY, EventType::CREATE, EventType::DELETE));
+        
+        watcher.add_monitored_path("/data/critical",
+            make_event_mask(EventType::DELETE, EventType::MOVED_FROM));
+        
+        // 启动监控
+        if (watcher.start()) {
+            // 运行一段时间
+            std::this_thread::sleep_for(std::chrono::minutes(30));
+            
+            // 停止监控
+            watcher.stop();
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
     }
     
     return 0;
@@ -868,7 +905,9 @@ void add_recursive_watch(FileWatcher& watcher, const std::string& root_path) {
 
 ## 另请参阅
 
-- [Logger API](/zh/api/logger-api) - 日志记录 API
 - [命令行工具](/zh/api/cli-tools) - filewatcher 命令行工具
+- [API 参考](/zh/api/) - 完整 API 文档
 - [基本用法示例](/zh/examples/basic-usage) - 完整使用示例
 - [入门指南](/zh/guide/getting-started) - 快速开始
+- [性能优化](/zh/guide/performance) - 性能调优指南
+- [系统工具](/zh/guide/system-tools) - 系统级工具使用

@@ -1,4 +1,3 @@
-#include "../src/loggerAPI/logger_api.hpp"
 #include "../src/filewatcherAPI/filewatcher_api.hpp"
 #include <iostream>
 #include <thread>
@@ -6,21 +5,11 @@
 #include <fstream>
 #include <atomic>
 
-// Example: Using Logger API and FileWatcher API together
+// Example: Using FileWatcher API
 class ApplicationMonitor {
 public:
     ApplicationMonitor() : running_(false) {
-        // Configure logger
-        LoggerAPI::InternalLogger::Config log_config;
-        log_config.log_path = "app_monitor.log";
-        log_config.max_file_size = 5 * 1024 * 1024; // 5MB
-        log_config.max_files = 3;
-        log_config.flush_interval_ms = 500;
-        log_config.min_log_level = LoggerAPI::LogLevel::DEBUG; // Set min log level
-        log_config.log_format = "[{timestamp}] thread:{thread_id} {level} - {message}"; // Custom log format
-        
-        LoggerAPI::init_logger(log_config);
-        LoggerAPI::info("ApplicationMonitor initialized"); // Changed to info
+        std::cout << "ApplicationMonitor initialized" << std::endl;
         
         // Setup file watcher
         setup_file_watcher();
@@ -28,7 +17,6 @@ public:
     
     ~ApplicationMonitor() {
         stop();
-        LoggerAPI::shutdown_logger();
     }
     
     void start() {
@@ -36,9 +24,7 @@ public:
             return; // Already running
         }
         
-        LoggerAPI::info("ApplicationMonitor started"); // Changed to info
-        LoggerAPI::debug("Debug mode: enabled"); // Example debug message
-        LoggerAPI::trace("Trace: Detailed trace information here."); // Example trace (should be filtered)
+        std::cout << "ApplicationMonitor started" << std::endl;
         
         // Start file watcher
         watcher_.start();
@@ -49,7 +35,7 @@ public:
     
     void stop() {
         if (running_.exchange(false)) {
-            LoggerAPI::warn("ApplicationMonitor stopping..."); // Changed to warn
+            std::cout << "ApplicationMonitor stopping..." << std::endl;
             
             watcher_.stop();
             
@@ -57,8 +43,7 @@ public:
                 worker_thread_.join();
             }
             
-            LoggerAPI::info("ApplicationMonitor stopped"); // Changed to info
-            LoggerAPI::fatal("Example of a FATAL error if something went critically wrong before stopping."); // Example fatal
+            std::cout << "ApplicationMonitor stopped" << std::endl;
         }
     }
     
@@ -71,7 +56,7 @@ private:
                     FileWatcherAPI::event_type_to_string(event.type) + 
                     " on " + event.path;
                 
-                LoggerAPI::debug(msg); // Changed to debug
+                std::cout << msg << std::endl;
                 
                 if (event.type == FileWatcherAPI::EventType::MODIFY) {
                     reload_config();
@@ -90,7 +75,7 @@ private:
                 if (!event.filename.empty()) {
                     std::string msg = "Data file " + event.filename + " was " +
                         FileWatcherAPI::event_type_to_string(event.type);
-                    LoggerAPI::debug(msg); // Changed to debug
+                    std::cout << msg << std::endl;
                 }
             },
             static_cast<uint32_t>(FileWatcherAPI::EventType::CREATE) |
@@ -103,8 +88,7 @@ private:
         
         while (running_) {
             // Simulate periodic work
-            LoggerAPI::info("Periodic task #" + std::to_string(++counter) + " executed"); // Changed to info
-            LoggerAPI::trace("Trace: Inside worker_loop iteration."); // Example trace (should be filtered)
+            std::cout << "Periodic task #" << ++counter << " executed" << std::endl;
             
             // Simulate some processing time
             std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -117,20 +101,20 @@ private:
     }
     
     void reload_config() {
-        LoggerAPI::info("Reloading configuration..."); // Changed to info
+        std::cout << "Reloading configuration..." << std::endl;
         
         // Simulate config reload
         std::ifstream config_file("config.txt");
         if (config_file.good()) {
             std::string line;
             while (std::getline(config_file, line)) {
-                LoggerAPI::debug("Config: " + line); // Changed to debug
+                std::cout << "Config: " << line << std::endl;
             }
         } else {
-            LoggerAPI::error("Failed to open config.txt for reloading."); // Example error
+            std::cout << "Failed to open config.txt for reloading." << std::endl;
         }
         
-        LoggerAPI::info("Configuration reloaded successfully"); // Changed to info
+        std::cout << "Configuration reloaded successfully" << std::endl;
     }
     
     void create_test_data_file(int counter) {
@@ -142,7 +126,7 @@ private:
         file << "Test data file #" << counter << std::endl;
         file << "Created at: " << std::time(nullptr) << std::endl;
         
-        LoggerAPI::debug("Created test data file: " + filename); // Changed to debug
+        std::cout << "Created test data file: " << filename << std::endl;
     }
     
     std::atomic<bool> running_;
@@ -184,7 +168,7 @@ int main() {
     system("rm -f config.txt");
     system("rm -rf data");
     
-    std::cout << "\nCheck app_monitor.log for the complete log output." << std::endl;
+    std::cout << "\nFileWatcher example completed." << std::endl;
     
     return 0;
 }

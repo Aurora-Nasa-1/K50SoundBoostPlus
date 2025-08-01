@@ -1,139 +1,59 @@
-import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { defineConfig } from 'vite'
+import { glob } from 'glob'
+import path from 'path'
 
-export default defineConfig(({ command, mode }) => {
-  const isProduction = mode === 'production';
-  const isGitHubPages = process.env.GITHUB_PAGES === 'true' || process.env.CI;
+export default defineConfig({
+  // 设置为相对路径，这样build后的资源路径就是相对的
+  base: './',
   
-  return {
-  base: isGitHubPages ? '/ModuleWebUI/' : '/',
-  
-  // 开发服务器配置
-  server: {
-    port: 3000,
-    open: true,
-    cors: true
-  },
-
   build: {
     // 输出目录
     outDir: 'dist',
-    // 清空输出目录
-    emptyOutDir: true,
-    // 生成源码映射
+    // 静态资源目录
+    assetsDir: 'assets',
+    // 生成sourcemap用于调试
     sourcemap: false,
-    // 启用/禁用 gzip 压缩大小报告
-    reportCompressedSize: true,
-    // chunk 大小警告的限制（以 kbs 为单位）
+    // 压缩代码
+    minify: 'esbuild',
+    // 设置chunk大小警告限制
     chunkSizeWarningLimit: 1000,
-    
-    // Rollup 配置
+    // 配置rollup选项来处理CSS文件
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html')
+        main: path.resolve(__dirname, 'index.html'),
+        // 添加页面CSS文件作为入口
+        ...Object.fromEntries(
+          glob.sync('src/assets/css/pages/*.css').map(file => [
+            path.basename(file, '.css'),
+            path.resolve(__dirname, file)
+          ])
+        )
       },
       output: {
-        // 单文件输出配置
-        manualChunks: undefined,
-        // 资源文件命名
+        // 保持CSS文件结构
         assetFileNames: (assetInfo) => {
-          const info = assetInfo.name.split('.');
-          const ext = info[info.length - 1];
-          if (/\.(woff|woff2|eot|ttf|otf)$/i.test(assetInfo.name)) {
-            return `assets/fonts/[name]-[hash][extname]`;
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            // 如果是页面CSS文件，保持在pages目录下
+            const cssFiles = glob.sync('src/assets/css/pages/*.css')
+            const isPageCSS = cssFiles.some(file => 
+              path.basename(file, '.css') === path.basename(assetInfo.name, '.css')
+            )
+            if (isPageCSS) {
+              return 'assets/css/pages/[name][extname]'
+            }
           }
-          if (/\.(png|jpe?g|gif|svg|ico|webp)$/i.test(assetInfo.name)) {
-            return `assets/images/[name]-[hash][extname]`;
-          }
-          if (ext === 'css') {
-            return `assets/css/[name]-[hash][extname]`;
-          }
-          return `assets/[name]-[hash][extname]`;
-        },
-        // JS文件命名
-        entryFileNames: `assets/js/[name]-[hash].js`,
-        chunkFileNames: `assets/js/[name]-[hash].js`
-      }
-    },
-    
-    // 压缩配置
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        // 移除console
-        drop_console: true,
-        // 移除debugger
-        drop_debugger: true,
-        // 移除无用代码
-        dead_code: true,
-        // 压缩条件表达式
-        conditionals: true,
-        // 压缩布尔值
-        booleans: true,
-        // 压缩循环
-        loops: true,
-        // 内联函数
-        inline: true,
-        // 合并变量
-        join_vars: true,
-        // 移除未使用的变量
-        unused: true
-      },
-      mangle: {
-        // 混淆变量名
-        toplevel: true
-      },
-      format: {
-        // 移除注释
-        comments: false
+          return 'assets/[name]-[hash][extname]'
+        }
       }
     }
   },
-
-  // CSS 配置
-  css: {
-    // CSS 压缩
-    postcss: {
-      plugins: []
-    },
-    // CSS 模块化
-    modules: false,
-    // CSS 预处理器选项
-    preprocessorOptions: {},
-    // 开发时是否注入CSS
-    devSourcemap: false
-  },
-
-  // 资源处理
-  assetsInclude: ['**/*.woff', '**/*.woff2', '**/*.ttf', '**/*.eot'],
-
-  // 依赖优化
-  optimizeDeps: {
-    // 强制预构建依赖
-    force: false,
-    // 包含的依赖
-    include: [],
-    // 排除的依赖
-    exclude: []
-  },
-
-  // 解析配置
-  resolve: {
-    // 路径别名
-    alias: {
-      '@': resolve(__dirname, 'src'),
-      '@assets': resolve(__dirname, 'src/assets'),
-      '@components': resolve(__dirname, 'src/components'),
-      '@pages': resolve(__dirname, 'src/pages')
-    },
-    // 文件扩展名
-    extensions: ['.js', '.json', '.css']
-  },
-
-  // 环境变量
-  define: {
-    __DEV__: JSON.stringify(!isProduction),
-    __GITHUB_PAGES__: JSON.stringify(isGitHubPages)
+  
+  server: {
+    // 开发服务器端口
+    port: 5174,
+    // 自动打开浏览器
+    open: false,
+    // 允许外部访问
+    host: true
   }
-};
-});
+})

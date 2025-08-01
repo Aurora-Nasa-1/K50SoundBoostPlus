@@ -477,32 +477,33 @@ FileWatcher API在设计时考虑了线程安全：
 
 **重要提示**: 如果回调访问共享数据，回调本身应该是线程安全的。
 
-## 🔗 与LoggerAPI集成
+## 🔗 高级事件处理
 
 ```cpp
 #include "filewatcherAPI/filewatcher_api.hpp"
-#include "loggerAPI/logger_api.hpp"
+#include <fstream>
+#include <chrono>
+#include <iomanip>
 
-class MonitoredApplication {
+class AdvancedFileWatcher {
 private:
     FileWatcherAPI::FileWatcher watcher_;
+    std::ofstream log_file_;
     
 public:
-    MonitoredApplication() {
-        // 初始化日志器
-        LoggerAPI::InternalLogger::Config config;
-        config.log_path = "monitor.log";
-        LoggerAPI::init_logger(config);
+    AdvancedFileWatcher() {
+        // 初始化日志文件
+        log_file_.open("file_monitor.log", std::ios::app);
         
-        // 设置带日志记录的文件监控
-        setupFileMonitoring();
+        // 设置高级文件监控
+        setupAdvancedMonitoring();
     }
     
 private:
-    void setupFileMonitoring() {
+    void setupAdvancedMonitoring() {
         watcher_.add_watch("/data/config", 
-            [](const FileWatcherAPI::FileEvent& event) {
-                std::string message = "文件事件: " + 
+            [this](const FileWatcherAPI::FileEvent& event) {
+                std::string message = getCurrentTimestamp() + " - 文件事件: " + 
                     FileWatcherAPI::event_type_to_string(event.type) + 
                     " 在 " + event.path;
                 
@@ -510,7 +511,8 @@ private:
                     message += "/" + event.filename;
                 }
                 
-                LoggerAPI::info(message);
+                logEvent(message);
+                handleSpecificEvent(event);
             },
             FileWatcherAPI::make_event_mask({
                 FileWatcherAPI::EventType::MODIFY,
@@ -520,14 +522,63 @@ private:
         );
         
         watcher_.start();
-        LoggerAPI::info("文件监控已启动");
+        logEvent("高级文件监控已启动");
+    }
+    
+    std::string getCurrentTimestamp() {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+        return ss.str();
+    }
+    
+    void logEvent(const std::string& message) {
+        if (log_file_.is_open()) {
+            log_file_ << message << std::endl;
+            log_file_.flush();
+        }
+        std::cout << message << std::endl;
+    }
+    
+    void handleSpecificEvent(const FileWatcherAPI::FileEvent& event) {
+        switch (event.type) {
+            case FileWatcherAPI::EventType::CREATE:
+                onFileCreated(event.path + "/" + event.filename);
+                break;
+            case FileWatcherAPI::EventType::MODIFY:
+                onFileModified(event.path + "/" + event.filename);
+                break;
+            case FileWatcherAPI::EventType::DELETE:
+                onFileDeleted(event.path + "/" + event.filename);
+                break;
+            default:
+                break;
+        }
+    }
+    
+    void onFileCreated(const std::string& filepath) {
+        logEvent("新文件创建: " + filepath);
+        // 可以在这里添加自动处理逻辑
+    }
+    
+    void onFileModified(const std::string& filepath) {
+        logEvent("文件修改: " + filepath);
+        // 可以在这里添加配置重载逻辑
+    }
+    
+    void onFileDeleted(const std::string& filepath) {
+        logEvent("文件删除: " + filepath);
+        // 可以在这里添加清理逻辑
     }
     
 public:
-    ~MonitoredApplication() {
+    ~AdvancedFileWatcher() {
         watcher_.stop();
-        LoggerAPI::info("文件监控已停止");
-        LoggerAPI::shutdown_logger();
+        logEvent("高级文件监控已停止");
+        if (log_file_.is_open()) {
+            log_file_.close();
+        }
     }
 };
 ```
@@ -542,9 +593,9 @@ public:
 
 ## 🔗 相关文档
 
-- [LoggerAPI参考](/api/logger-api) - 日志记录功能
+- [API参考](/api/) - 完整API文档
 - [CLI工具参考](/api/cli-tools) - 命令行文件监控工具
 - [系统工具指南](/guide/system-tools) - 系统工具使用指南
 - [开发API指南](/guide/development-api) - API开发和集成指南
-- [基础使用示例](/examples/basic-usage) - 完整使用示例
 - [性能优化指南](/guide/performance) - 优化技巧
+- [构建指南](/guide/building) - 编译和构建说明

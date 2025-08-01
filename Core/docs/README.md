@@ -1,6 +1,6 @@
 # AuroraCore Documentation
 
-这是 AuroraCore 项目的官方文档，使用 VitePress 构建，支持中英文双语。
+这是 AuroraCore 项目的官方文档，使用 VitePress 构建，支持中英文双语。AuroraCore 是专为 Android root 环境设计的高性能文件监控解决方案。
 
 ## 📚 文档结构
 
@@ -11,7 +11,6 @@ docs/
 ├── guide/                # 英文指南
 │   └── getting-started.md
 ├── api/                  # 英文 API 参考
-│   ├── logger-api.md
 │   ├── filewatcher-api.md
 │   └── cli-tools.md
 ├── examples/             # 英文示例
@@ -96,20 +95,20 @@ VitePress 支持以下 Markdown 扩展：
 ```markdown
 ::: code-group
 
-```cpp [logger_example.cpp]
-#include "logger_api.hpp"
+```cpp [filewatcher_example.cpp]
+#include "filewatcher_api.hpp"
 
 int main() {
-    init_logger("/tmp/app.log");
-    log_info("Hello World");
-    cleanup_logger();
+    init_filewatcher();
+    watch_file("/tmp/test.txt", "echo File changed");
+    cleanup_filewatcher();
     return 0;
 }
 ```
 
 ```bash [build.sh]
 #!/bin/bash
-g++ -o logger_example logger_example.cpp -llogger
+g++ -o filewatcher_example filewatcher_example.cpp -lfilewatcher
 ```
 
 :::

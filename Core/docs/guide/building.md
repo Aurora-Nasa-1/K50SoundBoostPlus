@@ -15,7 +15,7 @@ Complete guide for building AuroraCore from source code on different platforms a
 
 - **Host OS**: Linux, macOS, or Windows (with WSL)
 - **Target**: Android ARM64/ARMv7
-- **Disk Space**: ~500MB for full build
+- **Disk Space**: ~300MB for full build
 - **RAM**: 4GB minimum, 8GB recommended
 
 ## 🚀 Quick Start
@@ -157,14 +157,11 @@ make -j$(nproc)
 ### Core Libraries
 
 ```bash
-# Build only logger components
-make logger logger_daemon logger_client
-
 # Build only filewatcher components
 make filewatcher filewatcherAPI
 
 # Build all libraries
-make loggerAPI filewatcherAPI
+make filewatcherAPI
 ```
 
 ### Test Programs
@@ -175,7 +172,6 @@ make tests
 ctest --output-on-failure
 
 # Run specific tests
-./tests/test_logger_api
 ./tests/test_filewatcher_api
 ```
 
@@ -186,7 +182,6 @@ ctest --output-on-failure
 make examples
 
 # Run examples
-./examples/logger_example
 ./examples/filewatcher_example
 ```
 
@@ -328,8 +323,8 @@ make install
 
 ```bash
 # Copy libraries to Android project
-cp build-arm64/src/logger/libloggerAPI.so android-project/app/src/main/jniLibs/arm64-v8a/
-cp build-armv7/src/logger/libloggerAPI.so android-project/app/src/main/jniLibs/armeabi-v7a/
+cp build-arm64/src/filewatcher/libfilewatcherAPI.so android-project/app/src/main/jniLibs/arm64-v8a/
+cp build-armv7/src/filewatcher/libfilewatcherAPI.so android-project/app/src/main/jniLibs/armeabi-v7a/
 ```
 
 ## 🔧 Development Setup

@@ -41,6 +41,4 @@ find_package(Threads REQUIRED)
 # Add subdirectories
 add_subdirectory(src/filewatcher)
 add_subdirectory(src/filewatcherAPI)
-add_subdirectory(src/logger)
-add_subdirectory(src/loggerAPI)
 add_subdirectory(tests)

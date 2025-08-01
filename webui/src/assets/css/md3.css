@@ -272,9 +272,10 @@ dialog { /* Dialogs */
 .cards { /* Cards */
   display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   justify-content: center; grid-gap: .5rem;
+  margin: 1rem 0;
   &>* {
     --color: var(--on-surface);
-    display: flex; flex-direction: column; gap: 1rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
     background-color: var(--surface); color: var(--color);
     box-sizing: border-box;
     border: 0.0625rem solid var(--outline-variant); border-radius:0.75rem;
@@ -285,16 +286,15 @@ dialog { /* Dialogs */
 
     &>* {
       margin-inline: 1rem; margin-block: 0;
-      &:first-child { margin-block-start: 1rem; }
-      &:last-child  { margin-block-end:   1rem; }
+      &:first-child { margin-block-start: 0.5rem; }
+      &:last-child  { margin-block-end:   0.5rem; }
     }
 
     &>img, &>svg, &>hgroup>* { margin: 0; }
-    h3, h2{ font: var(--title-l); }
+    h3, h2{ font: var(--title-l); margin-top: 0.5rem; }
     hgroup p { font: var(--body-s); }
 
     &>fieldset:last-child {
-      flex-direction: row-reverse;
       margin-block-start: auto;
     }
   }

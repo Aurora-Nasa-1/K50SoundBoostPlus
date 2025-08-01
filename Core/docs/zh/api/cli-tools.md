@@ -1,627 +1,463 @@
 # 命令行工具参考
 
-AuroraCore 提供强大的命令行工具，用于系统级日志记录和文件监控。这些工具专为 Android root 环境设计，提供高性能、基于守护进程的日志解决方案。
+AuroraCore 提供强大的文件监控命令行工具，专为 Android root 环境设计，提供高性能的文件系统监控解决方案。
 
 ## 概述
 
 命令行工具包括：
 
-- **logger_daemon**: 高性能日志守护进程，支持自动轮转
-- **logger_client**: 轻量级客户端，用于向守护进程发送日志消息
 - **filewatcher**: 独立的文件监控工具，支持自定义命令执行
-
-## logger_daemon
-
-日志守护进程提供集中式、高性能的日志管理，具有自动文件轮转和智能缓冲功能。
-
-### 语法
-
-```bash
-logger_daemon [选项]
-```
-
-### 选项
-
-| 选项 | 描述 | 默认值 | 示例 |
-|------|------|--------|------|
-| `-f, --file <路径>` | 日志文件路径（必需） | - | `-f /data/local/tmp/app.log` |
-| `-s, --size <字节>` | 最大文件大小（字节） | 10485760 (10MB) | `-s 5242880` (5MB) |
-| `-n, --number <数量>` | 最大日志文件数量 | 5 | `-n 3` |
-| `-b, --buffer <字节>` | 缓冲区大小（字节） | 65536 (64KB) | `-b 131072` (128KB) |
-| `-p, --socket <路径>` | Unix 套接字路径 | `/tmp/logger_daemon` | `-p /data/local/tmp/logger.sock` |
-| `-d, --daemon` | 以守护进程运行（后台） | false | `-d` |
-| `-v, --verbose` | 启用详细输出 | false | `-v` |
-| `-h, --help` | 显示帮助信息 | - | `-h` |
-
-### 基本用法
-
-#### 启动基本守护进程
-
-```bash
-# 使用默认设置启动守护进程
-./logger_daemon -f /data/local/tmp/app.log
-```
-
-#### 使用自定义配置启动
-
-```bash
-# 使用自定义文件大小和数量启动
-./logger_daemon \
-  -f /data/local/tmp/myapp.log \
-  -s 20971520 \
-  -n 10 \
-  -b 131072 \
-  -p /data/local/tmp/myapp.sock
-```
-
-#### 作为后台守护进程运行
-
-```bash
-# 作为后台守护进程启动
-./logger_daemon -d \
-  -f /data/local/tmp/service.log \
-  -s 50331648 \
-  -n 5
-```
-
-### 高级配置
-
-#### 高性能设置
-
-```bash
-# 针对高吞吐量日志记录优化
-./logger_daemon \
-  -f /data/local/tmp/highperf.log \
-  -s 104857600 \    # 每个文件 100MB
-  -n 20 \           # 保留 20 个文件（总计 2GB）
-  -b 1048576 \      # 1MB 缓冲区
-  -p /data/local/tmp/highperf.sock
-```
-
-#### 内存受限设置
-
-```bash
-# 针对低内存使用优化
-./logger_daemon \
-  -f /data/local/tmp/lowmem.log \
-  -s 1048576 \      # 每个文件 1MB
-  -n 3 \            # 仅保留 3 个文件
-  -b 16384 \        # 16KB 缓冲区
-  -p /data/local/tmp/lowmem.sock
-```
-
-### 文件轮转
-
-守护进程在文件达到指定大小时自动轮转日志文件：
-
-```
-app.log         (当前活动日志文件)
-app.log.1       (上一个日志文件)
-app.log.2       (更旧的日志文件)
-app.log.3       (最旧的日志文件)
-```
-
-**轮转过程：**
-1. 当 `app.log` 达到最大大小时，重命名为 `app.log.1`
-2. 之前的 `app.log.1` 变成 `app.log.2`，以此类推
-3. 超出最大数量的文件被删除
-4. 创建新的 `app.log` 用于当前日志记录
-
-### 进程管理
-
-#### 检查守护进程是否运行
-
-```bash
-# 检查进程
-ps aux | grep logger_daemon
-
-# 检查套接字
-ls -la /tmp/logger_daemon
-```
-
-#### 停止守护进程
-
-```bash
-# 发送 SIGTERM 进行优雅关闭
-killall logger_daemon
-
-# 或查找 PID 并终止
-pkill -f logger_daemon
-```
-
-#### 重启守护进程
-
-```bash
-# 停止现有守护进程
-killall logger_daemon
-sleep 1
-
-# 启动新守护进程
-./logger_daemon -f /data/local/tmp/app.log -d
-```
-
-## logger_client
-
-用于向守护进程发送日志消息的轻量级客户端。
-
-### 语法
-
-```bash
-logger_client [选项] <消息>
-logger_client [选项] -m <消息>
-```
-
-### 选项
-
-| 选项 | 描述 | 默认值 | 示例 |
-|------|------|--------|------|
-| `-m, --message <文本>` | 要发送的日志消息 | - | `-m "应用程序已启动"` |
-| `-p, --socket <路径>` | Unix 套接字路径 | `/tmp/logger_daemon` | `-p /data/local/tmp/app.sock` |
-| `-t, --timeout <毫秒>` | 连接超时时间（毫秒） | 5000 | `-t 10000` |
-| `-v, --verbose` | 启用详细输出 | false | `-v` |
-| `-h, --help` | 显示帮助信息 | - | `-h` |
-
-### 基本用法
-
-#### 发送简单消息
-
-```bash
-# 发送消息（位置参数）
-./logger_client "应用程序启动成功"
-
-# 发送消息（使用标志）
-./logger_client -m "用户登录：admin"
-```
-
-#### 发送到自定义套接字
-
-```bash
-# 发送到特定守护进程实例
-./logger_client \
-  -p /data/local/tmp/myapp.sock \
-  -m "自定义守护进程消息"
-```
-
-#### 使用超时发送
-
-```bash
-# 使用自定义超时发送
-./logger_client \
-  -t 10000 \
-  -m "10秒超时的消息"
-```
-
-### 高级用法
-
-#### 脚本化日志记录
-
-```bash
-#!/bin/bash
-# log_script.sh
-
-LOG_SOCKET="/data/local/tmp/script.sock"
-
-log_info() {
-    ./logger_client -p "$LOG_SOCKET" -m "[信息] $1"
-}
-
-log_error() {
-    ./logger_client -p "$LOG_SOCKET" -m "[错误] $1"
-}
-
-# 使用方法
-log_info "脚本已启动"
-log_error "出现错误"
-log_info "脚本已完成"
-```
-
-#### 批量日志记录
-
-```bash
-# 发送多条消息
-for i in {1..10}; do
-    ./logger_client "处理项目 $i"
-    sleep 0.1
-done
-```
-
-#### 条件日志记录
-
-```bash
-# 基于条件记录日志
-if [ $? -eq 0 ]; then
-    ./logger_client "操作成功"
-else
-    ./logger_client "操作失败，错误代码 $?"
-fi
-```
-
-### 错误处理
-
-客户端处理各种错误情况：
-
-#### 连接错误
-
-```bash
-# 如果守护进程未运行
-$ ./logger_client "测试消息"
-错误：无法连接到守护进程套接字
-
-# 检查守护进程状态
-$ ps aux | grep logger_daemon
-```
-
-#### 套接字权限错误
-
-```bash
-# 如果套接字权限错误
-$ ./logger_client "测试消息"
-错误：权限被拒绝
-
-# 修复套接字权限
-$ chmod 666 /tmp/logger_daemon
-```
-
-#### 超时错误
-
-```bash
-# 如果守护进程无响应
-$ ./logger_client -t 1000 "测试消息"
-错误：1000毫秒后连接超时
-```
 
 ## filewatcher
 
-独立的文件监控工具，支持自定义命令执行。
+文件监控工具提供实时文件系统监控，基于 inotify 机制，支持递归目录监控和自定义事件处理。
 
 ### 语法
 
 ```bash
-filewatcher <路径> <命令> [选项]
+filewatcher <监控路径> <执行命令> [选项]
 ```
 
-### 参数
+### 参数说明
 
 | 参数 | 描述 | 示例 |
 |------|------|------|
-| `<路径>` | 要监控的文件或目录 | `/data/config` |
-| `<命令>` | 文件事件时执行的命令 | `"echo '文件已更改：%f'"` |
+| `<监控路径>` | 要监控的文件或目录 | `/data/config` |
+| `<执行命令>` | 文件事件发生时执行的命令 | `"echo '文件变化: %f'"` |
 
 ### 选项
 
 | 选项 | 描述 | 默认值 | 示例 |
 |------|------|--------|------|
-| `-e, --events <掩码>` | 事件掩码（逗号分隔） | `modify,create,delete` | `-e modify,create` |
 | `-r, --recursive` | 递归监控子目录 | false | `-r` |
-| `-d, --daemon` | 以守护进程运行（后台） | false | `-d` |
-| `-v, --verbose` | 启用详细输出 | false | `-v` |
+| `-d, --depth <数字>` | 最大监控深度（-1为无限制） | -1 | `-d 3` |
+| `-e, --events <事件>` | 监控的事件类型 | all | `-e create,modify` |
+| `-x, --exclude <模式>` | 排除的文件模式（正则表达式） | - | `--exclude="\.(tmp|log)$"` |
+| `-i, --include <模式>` | 包含的文件模式（正则表达式） | - | `--include="\.(cpp|hpp)$"` |
+| `-q, --quiet` | 静默模式，不输出事件信息 | false | `-q` |
+| `-v, --verbose` | 详细输出模式 | false | `-v` |
+| `-o, --output <路径>` | 输出文件路径 | - | `-o /data/logs/watch.log` |
+| `--daemon` | 后台运行模式 | false | `--daemon` |
 | `-h, --help` | 显示帮助信息 | - | `-h` |
+| `--version` | 显示版本信息 | - | `--version` |
 
 ### 事件类型
 
 | 事件 | 描述 | 使用场景 |
 |------|------|----------|
-| `modify` | 文件内容已更改 | 配置更新 |
-| `create` | 文件/目录已创建 | 新文件检测 |
-| `delete` | 文件/目录已删除 | 清理监控 |
-| `move` | 文件/目录已移动 | 文件组织 |
-| `attrib` | 属性已更改 | 权限更改 |
-| `access` | 文件已访问 | 使用跟踪 |
+| `create` | 文件/目录创建 | 新文件检测 |
+| `modify` | 文件内容修改 | 配置更新 |
+| `delete` | 文件/目录删除 | 清理监控 |
+| `move` | 文件/目录移动或重命名 | 文件组织 |
+| `attrib` | 文件属性变化 | 权限变更 |
+| `access` | 文件访问 | 使用跟踪 |
+| `all` | 所有事件类型 | 全面监控 |
 
-### 命令占位符
+### 命令变量
 
-命令字符串支持这些占位符：
+在执行命令中可以使用以下变量：
 
-| 占位符 | 描述 | 示例 |
-|--------|------|------|
+| 变量 | 描述 | 示例 |
+|------|------|------|
 | `%f` | 完整文件路径 | `/data/config/app.conf` |
 | `%d` | 目录路径 | `/data/config` |
 | `%n` | 仅文件名 | `app.conf` |
 | `%e` | 事件类型 | `modify` |
+| `%t` | 时间戳 | `2024-01-01 12:00:00` |
 
 ### 基本用法
 
 #### 监控单个文件
 
 ```bash
-# 监控配置文件
-./filewatcher /data/config/app.conf "echo '配置已更改：%f'"
+# 监控配置文件变化
+./filewatcher /data/config/app.conf "echo '配置文件已更新: %f'"
 ```
 
 #### 监控目录
 
 ```bash
-# 监控整个目录
-./filewatcher /data/logs "echo '日志事件：%e 在 %n'"
+# 监控目录中的所有文件
+./filewatcher /data/logs "echo '日志文件变化: %f (事件: %e)'"
 ```
 
-#### 自定义事件
+#### 递归监控
 
 ```bash
-# 仅监控文件创建
-./filewatcher \
-  /data/incoming \
-  "process_file.sh %f" \
-  -e create
+# 递归监控整个应用目录
+./filewatcher -r /data/app "echo '应用文件变化: %f (事件: %e)'"
+```
+
+#### 监控特定事件
+
+```bash
+# 仅监控文件创建和修改
+./filewatcher -e create,modify /data/uploads "echo '新文件: %f'"
 ```
 
 ### 高级用法
 
-#### 递归目录监控
+#### 使用文件过滤
 
 ```bash
-# 递归监控目录树
-./filewatcher \
+# 仅监控 C++ 源文件
+./filewatcher -r \
+  --include="\.(cpp|hpp|h)$" \
+  /data/src \
+  "echo 'C++源文件变化: %f'"
+
+# 排除临时文件
+./filewatcher -r \
+  --exclude="\.(tmp|bak|swp)$" \
   /data/project \
-  "echo '项目文件 %e：%f'" \
-  -r -v
+  "echo '项目文件变化: %f'"
 ```
 
-#### 后台监控
+#### 限制监控深度
+
+```bash
+# 仅监控前3层目录
+./filewatcher -r -d 3 /data/project "echo '文件变化: %f'"
+```
+
+#### 静默模式
+
+```bash
+# 静默运行，仅执行命令
+./filewatcher -q /data/config \
+  "echo '配置更新' >> /data/logs/config.log"
+```
+
+#### 输出到文件
+
+```bash
+# 将监控事件输出到文件
+./filewatcher -r -o /data/logs/filewatcher.log /data/app
+```
+
+#### 后台运行
 
 ```bash
 # 作为守护进程运行
-./filewatcher \
-  /data/critical \
-  "alert_system.sh '%f 被 %e'" \
-  -d -e modify,delete
+./filewatcher --daemon -r /data/critical \
+  "echo '[%t] 重要文件变化: %f' >> /data/logs/critical.log"
 ```
 
-#### 复杂命令执行
+### 实际应用场景
+
+#### 配置文件监控
 
 ```bash
-# 执行复杂的 shell 命令
-./filewatcher \
-  /data/uploads \
-  "if [ '%e' = 'create' ]; then process_upload.sh '%f'; fi" \
-  -e create
+# 监控配置文件变化并重启服务
+./filewatcher /etc/myapp/config.json \
+  "systemctl restart myapp && echo '服务已重启'"
 ```
 
-#### 日志文件监控
+#### 开发环境自动构建
 
 ```bash
-# 监控日志文件并发送警报
-./filewatcher \
-  /var/log \
-  "./logger_client '日志文件 %n 被 %e'" \
-  -e modify,create
+# 监控源码变化并自动编译
+./filewatcher -r \
+  --include="\.(cpp|hpp|c|h)$" \
+  /data/src \
+  "cd /data && make && echo '编译完成'"
 ```
 
-### 集成示例
-
-#### 系统配置监控器
+#### 日志管理
 
 ```bash
-#!/bin/bash
-# config_monitor.sh
-
-# 启动日志守护进程
-./logger_daemon -f /data/local/tmp/config_monitor.log -d
-
-# 监控系统配置
-./filewatcher \
-  /data/config \
-  "./logger_client '检测到配置更改：%f (%e)'" \
-  -r -d
-
-echo "配置监控已启动"
+# 监控日志目录并自动压缩大文件
+./filewatcher -e create /data/logs \
+  "find /data/logs -name '*.log' -size +100M -exec gzip {} \;"
 ```
 
-#### 备份触发器
+#### 文件上传处理
 
 ```bash
-# 重要文件更改时触发备份
-./filewatcher \
-  /data/important \
-  "backup_script.sh '%d' && ./logger_client '由 %f 触发备份'" \
-  -e modify,create -r
+# 监控上传目录并处理新文件
+./filewatcher -e create /data/uploads \
+  "./process_upload.sh '%f'"
 ```
 
 #### 安全监控
 
 ```bash
-# 监控敏感目录
-./filewatcher \
-  /data/secure \
-  "./logger_client '安全：%f 在 $(date) 被 %e'" \
-  -e create,delete,modify,attrib -v
+# 监控重要系统文件变化
+./filewatcher -r /etc/important \
+  "echo '[%t] 安全警告: %f 被修改 (事件: %e)' >> /var/log/security.log"
 ```
 
-## 集成模式
+## 高级使用模式
 
-### 模式 1：应用程序日志记录
+### 完整监控解决方案
 
 ```bash
-# 为应用程序启动专用守护进程
-./logger_daemon \
-  -f /data/local/tmp/myapp.log \
-  -s 10485760 \
-  -n 5 \
-  -p /data/local/tmp/myapp.sock \
-  -d
+#!/bin/bash
+# complete_monitoring.sh
 
-# 应用程序发送日志
-./logger_client -p /data/local/tmp/myapp.sock "应用已启动"
-./logger_client -p /data/local/tmp/myapp.sock "处理请求中"
-./logger_client -p /data/local/tmp/myapp.sock "应用已完成"
+# 监控应用目录
+./filewatcher -r /data/app \
+  "echo '[%t] 应用文件变化: %f (事件: %e)' >> /data/logs/app_changes.log" \
+  --daemon
+
+echo "应用目录监控已启动"
+
+# 监控配置文件
+./filewatcher /data/config/app.conf \
+  "echo '[%t] 配置更新，重启服务' >> /data/logs/config.log && systemctl restart myapp" \
+  --daemon
+
+echo "配置文件监控已启动"
+
+# 监控日志目录并自动清理
+./filewatcher -e create /data/logs \
+  "find /data/logs -name '*.log' -size +100M -exec gzip {} \;" \
+  --daemon
+
+echo "日志清理监控已启动"
+echo "完整监控系统部署完成"
 ```
 
-### 模式 2：系统监控
+### 开发环境监控
 
 ```bash
-# 启动系统日志记录器
-./logger_daemon \
-  -f /data/local/tmp/system.log \
-  -s 52428800 \
-  -n 10 \
-  -p /data/local/tmp/system.sock \
-  -d
+#!/bin/bash
+# dev_monitoring.sh
 
-# 监控多个目录
-./filewatcher \
-  /data/config \
-  "./logger_client -p /data/local/tmp/system.sock '配置：%f %e'" \
-  -r -d
+# 监控源码变化并自动构建
+./filewatcher -r \
+  --include="\.(cpp|hpp|h|cmake)$" \
+  /data/project \
+  "cd /data/project && make -j4 && echo '[%t] 构建完成: %f' >> /data/logs/build.log" \
+  --daemon
 
+# 监控测试文件变化并运行测试
 ./filewatcher \
-  /data/critical \
-  "./logger_client -p /data/local/tmp/system.sock '关键：%f %e'" \
-  -d
+  --include="test_.*\.cpp$" \
+  /data/project/tests \
+  "cd /data/project && make test && echo '[%t] 测试完成: %f' >> /data/logs/test.log" \
+  --daemon
+
+echo "开发环境监控已启动"
 ```
 
-### 模式 3：服务管理
+### 服务管理模式
 
 ```bash
 #!/bin/bash
 # service_manager.sh
 
 SERVICE_NAME="myservice"
-LOG_PATH="/data/local/tmp/${SERVICE_NAME}.log"
-SOCK_PATH="/data/local/tmp/${SERVICE_NAME}.sock"
+LOG_PATH="/data/logs/${SERVICE_NAME}_filewatcher.log"
 
 start_service() {
-    # 启动日志守护进程
-    ./logger_daemon \
-        -f "$LOG_PATH" \
-        -s 20971520 \
-        -n 7 \
-        -p "$SOCK_PATH" \
-        -d
+    echo "启动文件监控服务: $SERVICE_NAME"
     
-    # 记录服务启动
-    ./logger_client -p "$SOCK_PATH" "服务 $SERVICE_NAME 已启动"
-    
-    # 启动文件监控
+    # 启动配置文件监控
     ./filewatcher \
         "/data/config/${SERVICE_NAME}.conf" \
-        "./logger_client -p '$SOCK_PATH' '配置已重新加载'" \
-        -e modify -d
+        "echo '[%t] 配置已重新加载' >> '$LOG_PATH'" \
+        -e modify --daemon
+    
+    # 启动应用目录监控
+    ./filewatcher -r \
+        "/data/app/${SERVICE_NAME}" \
+        "echo '[%t] 应用文件变化: %f (事件: %e)' >> '$LOG_PATH'" \
+        --daemon
+    
+    echo "文件监控服务 $SERVICE_NAME 启动完成"
 }
 
 stop_service() {
-    ./logger_client -p "$SOCK_PATH" "服务 $SERVICE_NAME 正在停止"
-    killall logger_daemon
+    echo "停止文件监控服务: $SERVICE_NAME"
     killall filewatcher
+    echo "文件监控服务 $SERVICE_NAME 已停止"
+}
+
+status_service() {
+    if pgrep -f "filewatcher.*$SERVICE_NAME" > /dev/null; then
+        echo "文件监控服务 $SERVICE_NAME 正在运行"
+        ps aux | grep -E "filewatcher.*$SERVICE_NAME"
+    else
+        echo "文件监控服务 $SERVICE_NAME 未运行"
+    fi
 }
 
 case "$1" in
     start) start_service ;;
     stop) stop_service ;;
-    *) echo "用法：$0 {start|stop}" ;;
+    status) status_service ;;
+    restart) stop_service; sleep 2; start_service ;;
+    *) echo "用法: $0 {start|stop|status|restart}" ;;
 esac
 ```
 
-## 性能调优
+## 性能优化
 
-### 高吞吐量日志记录
+### 减少监控开销
 
 ```bash
-# 针对高消息量优化
-./logger_daemon \
-  -f /data/local/tmp/highvolume.log \
-  -s 209715200 \    # 200MB 文件
-  -n 50 \           # 保留 50 个文件（总计 10GB）
-  -b 2097152 \      # 2MB 缓冲区
-  -p /data/local/tmp/highvolume.sock
+# 仅监控必要的事件类型
+./filewatcher -r \
+  -e modify,create \
+  -d 3 \
+  --exclude="\.(tmp|swp|log)$" \
+  /data/project \
+  "echo '项目文件变化: %f'"
 ```
 
-### 低延迟日志记录
+### 高性能配置
 
 ```bash
-# 针对低延迟优化
-./logger_daemon \
-  -f /data/local/tmp/lowlatency.log \
-  -s 10485760 \     # 10MB 文件
-  -n 5 \            # 保留 5 个文件
-  -b 32768 \        # 32KB 缓冲区（更小以便更快刷新）
-  -p /data/local/tmp/lowlatency.sock
+# 针对配置文件的高效监控
+./filewatcher -r \
+  --include="\.(conf|json|xml|yaml)$" \
+  -e modify \
+  /data/config \
+  "echo '配置文件更新: %f'"
 ```
 
-### 内存受限环境
+### 批量处理
 
 ```bash
-# 针对低内存使用优化
-./logger_daemon \
-  -f /data/local/tmp/lowmem.log \
-  -s 1048576 \      # 1MB 文件
-  -n 2 \            # 仅保留 2 个文件
-  -b 8192 \         # 8KB 缓冲区
-  -p /data/local/tmp/lowmem.sock
+# 使用批量处理脚本
+./filewatcher -r /data/uploads \
+  "echo '%f' >> /tmp/upload_queue.txt" \
+  --daemon
+
+# 定期处理队列
+(while true; do
+    if [ -s /tmp/upload_queue.txt ]; then
+        ./batch_process.sh /tmp/upload_queue.txt
+        > /tmp/upload_queue.txt
+    fi
+    sleep 10
+done) &
 ```
 
 ## 故障排除
 
 ### 常见问题
 
-#### 守护进程无法启动
-
-```bash
-# 检查套接字是否已存在
-ls -la /tmp/logger_daemon
-
-# 删除过期套接字
-rm -f /tmp/logger_daemon
-
-# 检查权限
-ls -la /data/local/tmp/
-
-# 使用详细输出启动
-./logger_daemon -f /data/local/tmp/test.log -v
-```
-
-#### 客户端无法连接
-
-```bash
-# 检查守护进程是否运行
-ps aux | grep logger_daemon
-
-# 检查套接字权限
-ls -la /tmp/logger_daemon
-
-# 使用详细输出测试
-./logger_client -v "测试消息"
-```
-
-#### 文件监控器不工作
+#### 1. 文件监控不工作
 
 ```bash
 # 检查路径是否存在
 ls -la /data/config
 
 # 使用详细输出测试
-./filewatcher /data/config "echo test" -v
+./filewatcher /data/config "echo 测试" -v
 
 # 检查 inotify 限制
 cat /proc/sys/fs/inotify/max_user_watches
+
+# 增加监控限制（需要 root 权限）
+echo 524288 > /proc/sys/fs/inotify/max_user_watches
 ```
 
-### 调试模式
+#### 2. 权限问题
 
 ```bash
-# 在前台运行守护进程并输出详细信息
-./logger_daemon -f /data/local/tmp/debug.log -v
+# 检查文件权限
+ls -la /data/config
 
-# 运行文件监控器并输出详细信息
-./filewatcher /data/test "echo %f" -v
+# 检查执行权限
+ls -la ./filewatcher
 
-# 测试客户端连接
-./logger_client -v "调试消息"
+# 修复权限
+chmod +x ./filewatcher
+chmod 755 /data/config
+```
+
+#### 3. 性能问题
+
+```bash
+# 检查监控的文件数量
+find /data/project -type f | wc -l
+
+# 使用文件过滤减少监控范围
+./filewatcher -r \
+  --include="\.(cpp|hpp|h)$" \
+  /data/project \
+  "echo '源文件变化: %f'"
+
+# 限制监控深度
+./filewatcher -r -d 2 /data/project "echo '文件变化: %f'"
+```
+
+### 调试技巧
+
+```bash
+# 使用详细模式
+./filewatcher -v /path/to/watch "echo 测试"
+
+# 检查系统资源
+df -h /data                   # 磁盘空间
+free -h                       # 内存使用
+ps aux | grep filewatcher     # 进程状态
+
+# 测试基本功能
+./filewatcher /tmp "echo '测试成功: %f'" &
+touch /tmp/test.txt
+killall filewatcher
+
+# 监控输出文件
+tail -f /data/logs/filewatcher.log
+
+# 检查文件描述符使用
+lsof -p $(pgrep filewatcher) | wc -l
+```
+
+### 性能监控
+
+```bash
+# 监控 CPU 使用
+top -p $(pgrep filewatcher)
+
+# 监控内存使用
+ps -o pid,vsz,rss,comm -p $(pgrep filewatcher)
+
+# 监控文件描述符
+watch -n 5 'lsof -p $(pgrep filewatcher) | wc -l'
+
+# 监控 inotify 使用
+watch -n 5 'cat /proc/sys/fs/inotify/max_user_watches'
 ```
 
 ## 最佳实践
 
-1. **使用绝对路径** 用于所有文件和套接字路径
-2. **根据日志量设置适当的缓冲区大小**
-3. **使用大型日志文件时监控磁盘空间**
-4. **在生产部署中使用守护进程模式**
-5. **实施日志轮转监控** 以防止磁盘满
-6. **在部署环境中测试套接字权限**
-7. **使用有意义的日志消息** 包含上下文信息
-8. **使用进程监控工具监控守护进程健康状况**
+### 1. 部署建议
 
-## 另请参阅
+- **使用绝对路径**: 所有文件路径都使用绝对路径
+- **合理设置监控深度**: 避免监控过深的目录结构
+- **使用文件过滤**: 减少不必要的文件事件处理
+- **使用守护模式**: 生产环境部署时使用后台模式
+- **监控系统资源**: 定期检查 inotify 限制和文件描述符使用
 
-- [Logger API](/zh/api/logger-api) - 程序化日志记录接口
-- [FileWatcher API](/zh/api/filewatcher-api) - 程序化文件监控
-- [示例](/zh/examples/basic-usage) - 完整集成示例
-- [性能指南](/zh/guide/performance) - 优化策略
+### 2. 安全考虑
+
+- **限制监控路径**: 仅监控必要的目录和文件
+- **使用安全的执行命令**: 避免在命令中使用不安全的操作
+- **设置适当的权限**: 确保 filewatcher 有足够但不过度的权限
+- **避免监控敏感目录**: 不要监控包含敏感信息的目录
+
+### 3. 性能优化
+
+- **使用事件过滤**: 仅监控需要的事件类型
+- **限制监控范围**: 使用 include/exclude 模式过滤文件
+- **避免深层递归**: 限制递归监控的深度
+- **批量处理**: 对于高频事件，考虑批量处理
+
+### 4. 监控和维护
+
+- **实施健康检查**: 定期检查 filewatcher 进程状态
+- **监控资源使用**: 监控 CPU、内存和文件描述符使用
+- **日志轮转**: 定期清理和轮转输出日志
+- **自动化部署**: 使用脚本自动化工具部署和管理
+
+## 相关文档
+
+- [FileWatcher API 参考](/zh/api/filewatcher-api) - 程序化文件监控接口
+- [系统工具指南](/zh/guide/system-tools) - 系统工具使用指南
+- [开发 API 指南](/zh/guide/development-api) - API 开发和集成指南
+- [构建指南](/zh/guide/building) - 编译和构建说明

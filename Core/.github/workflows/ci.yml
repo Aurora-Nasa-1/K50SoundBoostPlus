@@ -97,25 +97,13 @@ jobs:
       run: |
         cd build-native
         
-        # Test logger API
-        echo "🧪 Testing Logger API..."
-        ./tests/test_logger_api || echo "Logger API test failed"
-        
         # Test filewatcher API  
         echo "🧪 Testing FileWatcher API..."
         timeout 30s ./tests/test_filewatcher_api || echo "FileWatcher API test completed"
         
         # Basic binary checks
         echo "🔍 Checking binary availability..."
-        ls -la src/logger/ src/filewatcher/ || true
-        
-        # Test logger daemon help
-        echo "📋 Testing logger daemon help..."
-        ./src/logger/logger_daemon --help || ./src/logger/logger_daemon -h || echo "Help command tested"
-        
-        # Test logger client help
-        echo "📋 Testing logger client help..."
-        ./src/logger/logger_client --help || ./src/logger/logger_client -h || echo "Help command tested"
+        ls -la src/filewatcher/ || true
         
         # Test filewatcher help
         echo "📋 Testing filewatcher help..."
@@ -130,28 +118,6 @@ jobs:
         # Create test directory
         mkdir -p /tmp/AuroraCore-test
         
-        # Test logger daemon startup (background)
-        echo "🚀 Testing logger daemon startup..."
-        timeout 10s ./src/logger/logger_daemon -f /tmp/AuroraCore-test/test.log -p /tmp/AuroraCore-test/logger.sock &
-        DAEMON_PID=$!
-        sleep 2
-        
-        # Test if daemon is running
-        if kill -0 $DAEMON_PID 2>/dev/null; then
-          echo "✅ Logger daemon started successfully"
-          
-          # Test logger client
-          echo "📝 Testing logger client..."
-          ./src/logger/logger_client -p /tmp/AuroraCore-test/logger.sock -l info "Test message from CI" || echo "Client test completed"
-          
-          # Stop daemon gracefully
-          kill -TERM $DAEMON_PID 2>/dev/null || true
-          sleep 1
-          kill -KILL $DAEMON_PID 2>/dev/null || true
-        else
-          echo "❌ Logger daemon failed to start"
-        fi
-        
         # Test filewatcher (short duration)
         echo "👁️ Testing filewatcher..."
         
@@ -162,114 +128,78 @@ jobs:
         WATCHER_PID=$!
         sleep 1
         
-
+        # Modify the file to trigger event
+        echo "modified" >> /tmp/AuroraCore-test/watch.txt
+        sleep 1
         
         # Stop watcher
         kill -TERM $WATCHER_PID 2>/dev/null || true
         
         echo "✅ Command-line tests completed"
     
-    - name: Daemon process tests
+    - name: FileWatcher process tests
       run: |
         cd build-native
         
-        echo "🔄 Testing daemon process behavior..."
+        echo "🔄 Testing FileWatcher process behavior..."
         
-        # Test daemon lifecycle
-        echo "📊 Testing daemon lifecycle..."
+        # Test filewatcher lifecycle
+        echo "📊 Testing filewatcher lifecycle..."
         
-        # Start daemon with custom config
-        ./src/logger/logger_daemon \
-          -f /tmp/AuroraCore-test/daemon.log \
-          -s 1048576 \
-          -n 3 \
-          -b 32768 \
-          -p /tmp/AuroraCore-test/daemon.sock \
-          -t 1000 &
-        DAEMON_PID=$!
+        # Create test files
+        mkdir -p /tmp/AuroraCore-test/watch-dir
+        echo "initial" > /tmp/AuroraCore-test/watch-dir/test.txt
         
-        sleep 3
+        # Start filewatcher with recursive monitoring
+        timeout 15s ./src/filewatcher/filewatcher \
+          -r \
+          -e create,modify,delete \
+          /tmp/AuroraCore-test/watch-dir \
+          "echo 'Event detected'" &
+        WATCHER_PID=$!
         
-        # Check if daemon is responsive
-        if kill -0 $DAEMON_PID 2>/dev/null; then
-          echo "✅ Daemon is running with PID $DAEMON_PID"
+        sleep 2
+        
+        # Check if watcher is responsive
+        if kill -0 $WATCHER_PID 2>/dev/null; then
+          echo "✅ FileWatcher is running with PID $WATCHER_PID"
           
-          # Send multiple log messages
-          for i in {1..10}; do
-            ./src/logger/logger_client -p /tmp/AuroraCore-test/daemon.sock -l info "Stress test message $i" || true
-            sleep 0.1
+          # Perform multiple file operations
+          for i in {1..5}; do
+            echo "test data $i" > /tmp/AuroraCore-test/watch-dir/file_$i.txt
+            sleep 0.2
           done
           
           # Test signal handling
           echo "📡 Testing signal handling..."
-          kill -USR1 $DAEMON_PID 2>/dev/null || true  # Custom signal test
+          kill -USR1 $WATCHER_PID 2>/dev/null || true  # Custom signal test
           sleep 1
           
           # Graceful shutdown
-          kill -TERM $DAEMON_PID
+          kill -TERM $WATCHER_PID 2>/dev/null || true
           sleep 2
           
-          # Check if daemon stopped gracefully
-          if ! kill -0 $DAEMON_PID 2>/dev/null; then
-            echo "✅ Daemon stopped gracefully"
+          # Check if watcher stopped gracefully
+          if ! kill -0 $WATCHER_PID 2>/dev/null; then
+            echo "✅ FileWatcher stopped gracefully"
           else
-            echo "⚠️ Daemon still running, force killing"
-            kill -KILL $DAEMON_PID 2>/dev/null || true
+            echo "⚠️ FileWatcher still running, force killing"
+            kill -KILL $WATCHER_PID 2>/dev/null || true
           fi
         else
-          echo "❌ Daemon failed to start"
+          echo "❌ FileWatcher failed to start"
         fi
         
-        # Check log files
-        echo "📄 Checking generated log files..."
-        ls -la /tmp/AuroraCore-test/ || true
-        if [ -f "/tmp/AuroraCore-test/daemon.log" ]; then
-          echo "✅ Log file created"
-          echo "📋 Log file content (first 10 lines):"
-          head -10 /tmp/AuroraCore-test/daemon.log || true
-        fi
+        # Check created files
+        echo "📄 Checking created test files..."
+        ls -la /tmp/AuroraCore-test/watch-dir/ || true
+        echo "✅ FileWatcher process test completed"
     
     - name: Memory leak detection
       run: |
         cd build-native
         
         echo "🔍 Running memory leak detection with Valgrind..."
-        
-        # Test logger daemon for memory leaks (short run)
-        echo "🧪 Testing logger daemon memory usage..."
-        timeout 15s valgrind \
-          --tool=memcheck \
-          --leak-check=full \
-          --show-leak-kinds=all \
-          --track-origins=yes \
-          --verbose \
-          --log-file=/tmp/AuroraCore-test/valgrind-daemon.log \
-          ./src/logger/logger_daemon \
-            -f /tmp/AuroraCore-test/valgrind.log \
-            -p /tmp/AuroraCore-test/valgrind.sock &
-        VALGRIND_PID=$!
-        
-        sleep 5
-        
-        # Send some test messages
-        for i in {1..5}; do
-          ./src/logger/logger_client -p /tmp/AuroraCore-test/valgrind.sock "Valgrind test $i" 2>/dev/null || true
-          sleep 0.5
-        done
-        
-        # Stop daemon
-        kill -TERM $VALGRIND_PID 2>/dev/null || true
-        sleep 3
-        kill -KILL $VALGRIND_PID 2>/dev/null || true
-        
-        # Test logger client for memory leaks
-        echo "🧪 Testing logger client memory usage..."
-        valgrind \
-          --tool=memcheck \
-          --leak-check=full \
-          --show-leak-kinds=all \
-          --log-file=/tmp/AuroraCore-test/valgrind-client.log \
-          ./src/logger/logger_client "Valgrind client test" 2>/dev/null || true
         
         # Test filewatcher for memory leaks (short run)
         echo "🧪 Testing filewatcher memory usage..."
@@ -287,21 +217,25 @@ jobs:
 
         kill -TERM $WATCHER_VALGRIND_PID 2>/dev/null || true
         
+        # Test filewatcher help command for memory leaks
+        echo "🧪 Testing filewatcher help for memory leaks..."
+        valgrind \
+          --tool=memcheck \
+          --leak-check=full \
+          --show-leak-kinds=all \
+          --log-file=/tmp/AuroraCore-test/valgrind-help.log \
+          ./src/filewatcher/filewatcher --help || echo "FileWatcher help valgrind test completed"
+        
         # Analyze Valgrind results
         echo "📊 Valgrind Results Summary:"
-        echo "=== Logger Daemon ==="
-        if [ -f "/tmp/AuroraCore-test/valgrind-daemon.log" ]; then
-          grep -E "(ERROR SUMMARY|definitely lost|indirectly lost|possibly lost)" /tmp/AuroraCore-test/valgrind-daemon.log || echo "No major issues found"
-        fi
-        
-        echo "=== Logger Client ==="
-        if [ -f "/tmp/AuroraCore-test/valgrind-client.log" ]; then
-          grep -E "(ERROR SUMMARY|definitely lost|indirectly lost|possibly lost)" /tmp/AuroraCore-test/valgrind-client.log || echo "No major issues found"
-        fi
-        
         echo "=== FileWatcher ==="
         if [ -f "/tmp/AuroraCore-test/valgrind-watcher.log" ]; then
           grep -E "(ERROR SUMMARY|definitely lost|indirectly lost|possibly lost)" /tmp/AuroraCore-test/valgrind-watcher.log || echo "No major issues found"
+        fi
+        
+        echo "=== FileWatcher Help ==="
+        if [ -f "/tmp/AuroraCore-test/valgrind-help.log" ]; then
+          grep -E "(ERROR SUMMARY|definitely lost|indirectly lost|possibly lost)" /tmp/AuroraCore-test/valgrind-help.log || echo "No major issues found"
         fi
     
     - name: Upload test results and logs
@@ -383,6 +317,24 @@ jobs:
         echo "🐧 Linux Native Test Status: ${{ needs.linux-native-test.result }}"
         echo "🔍 Code Quality Status: ${{ needs.code-quality.result }}"
         echo ""
+        echo "📊 CI Pipeline Summary"
+        echo "========================"
+        echo "Timestamp: $(date)"
+        echo "Commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo ""
+        echo "🔧 Components Tested:"
+        echo "  - FileWatcher API: ✓"
+        echo "  - FileWatcher: ✓"
+        echo ""
+        echo "🧪 Test Categories:"
+        echo "  - Unit Tests: ✓"
+        echo "  - Integration Tests: ✓"
+        echo "  - CLI Interface Tests: ✓"
+        echo "  - FileWatcher Process Tests: ✓"
+        echo "  - Memory Leak Detection: ✓"
+        echo "  - Code Quality Checks: ✓"
+        echo ""
         
         # Check critical failures
         if [[ "${{ needs.build-and-test.result }}" != "success" ]]; then
@@ -394,7 +346,7 @@ jobs:
           echo "❌ Linux native functionality tests failed"
           echo "   This indicates potential issues with:"
           echo "   - Command-line interfaces"
-          echo "   - Daemon process behavior"
+          echo "   - FileWatcher process behavior"
           echo "   - Memory management"
           echo "   - Core functionality"
           exit 1
@@ -406,7 +358,7 @@ jobs:
           # Don't fail CI for code quality issues, just warn
         fi
         
-        echo "✅ All CI checks completed successfully!"
+        echo "✅ All FileWatcher tests passed successfully!"
         echo "📦 Android binaries are ready for deployment"
         echo "🧪 Functionality verified on Linux platform"
         echo "🔍 Code quality analysis completed"

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'AuroraCore',
-  description: 'Android Root Logger & File Watcher - High-performance logging and file monitoring for Android',
+  description: 'Android Root File Watcher - High-performance file monitoring for Android root environment',
   
   // 多语言配置
   locales: {
@@ -10,7 +10,7 @@ export default defineConfig({
       label: 'English',
       lang: 'en',
       title: 'AuroraCore',
-      description: 'Android Root Logger & File Watcher - High-performance logging and file monitoring for Android root environment',
+      description: 'Android Root File Watcher - High-performance file monitoring for Android root environment',
       themeConfig: {
         nav: [
           { text: 'Home', link: '/' },
@@ -34,7 +34,7 @@ export default defineConfig({
               text: 'API Reference',
               items: [
                 { text: 'Overview', link: '/api/' },
-                { text: 'Logger API', link: '/api/logger-api' },
+
                 { text: 'FileWatcher API', link: '/api/filewatcher-api' },
                 { text: 'CLI Tools', link: '/api/cli-tools' }
               ]
@@ -47,7 +47,7 @@ export default defineConfig({
       label: '中文',
       lang: 'zh-CN',
       title: 'AuroraCore',
-      description: 'Android Root 日志系统与文件监听工具 - 专为Android root环境设计的高性能日志记录和文件监控解决方案',
+      description: 'Android Root 文件监听工具 - 专为Android root环境设计的高性能文件监控解决方案',
       themeConfig: {
         nav: [
           { text: '首页', link: '/zh/' },
@@ -72,7 +72,7 @@ export default defineConfig({
               text: 'API 参考',
               items: [
                 { text: '概览', link: '/zh/api/' },
-                { text: 'Logger API', link: '/zh/api/logger-api' },
+
                 { text: 'FileWatcher API', link: '/zh/api/filewatcher-api' },
                 { text: '命令行工具', link: '/zh/api/cli-tools' }
               ]
@@ -139,7 +139,7 @@ export default defineConfig({
     ['meta', { name: 'theme-color', content: '#3c8772' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'en' }],
-    ['meta', { property: 'og:title', content: 'AuroraCore | Android Root Logger & File Watcher' }],
+    ['meta', { property: 'og:title', content: 'AuroraCore | Android Root File Watcher' }],
     ['meta', { property: 'og:site_name', content: 'AuroraCore' }],
     ['meta', { property: 'og:url', content: 'https://APMMDEVS.github.io/AuroraCore/' }]
   ]

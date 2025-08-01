@@ -1,70 +1,10 @@
 # Performance Optimization Guide
 
-This guide covers performance optimization techniques for AuroraCore components to ensure efficient operation in Android root environments.
+This guide covers performance optimization techniques for AuroraCore FileWatcher component to ensure efficient operation in Android root environments.
 
 ## 📊 Overview
 
-AuroraCore is designed for high-performance logging and file monitoring. Proper configuration and usage patterns can significantly impact system performance, battery life, and resource utilization.
-
-## 🚀 Logger Performance Optimization
-
-### Buffer Management
-
-#### Optimal Buffer Sizes
-
-```cpp
-// Recommended buffer configurations for different scenarios
-
-// High-frequency logging (>1000 logs/sec)
-LoggerAPI::InternalLogger::Config high_freq_config;
-high_freq_config.buffer_size = 1024 * 1024;  // 1MB buffer
-high_freq_config.flush_interval_ms = 5000;    // 5 second flush
-
-// Normal application logging
-LoggerAPI::InternalLogger::Config normal_config;
-normal_config.buffer_size = 256 * 1024;      // 256KB buffer
-normal_config.flush_interval_ms = 2000;      // 2 second flush
-
-// Low-frequency system monitoring
-LoggerAPI::InternalLogger::Config low_freq_config;
-low_freq_config.buffer_size = 64 * 1024;     // 64KB buffer
-low_freq_config.flush_interval_ms = 10000;   // 10 second flush
-```
-
-#### Memory Usage Optimization
-
-```cpp
-// Use appropriate log levels to reduce overhead
-config.min_log_level = LoggerAPI::LogLevel::INFO;  // Skip DEBUG/TRACE in production
-
-// Configure file rotation to prevent excessive disk usage
-config.max_file_size = 50 * 1024 * 1024;  // 50MB per file
-config.max_file_count = 10;                // Keep 10 files max
-```
-
-### Daemon Mode Performance
-
-#### Process Priority
-
-```bash
-# Run logger daemon with appropriate priority
-# For system services
-nice -n -10 ./logger_daemon -f /data/logs/system.log
-
-# For application logging
-nice -n 5 ./logger_daemon -f /data/logs/app.log
-```
-
-#### Socket Configuration
-
-```bash
-# Use Unix domain sockets for better performance
-./logger_daemon -p /tmp/fast_logger.sock -b 1048576
-
-# Multiple daemon instances for load distribution
-./logger_daemon -p /tmp/logger_system.sock -f /data/logs/system.log &
-./logger_daemon -p /tmp/logger_app.sock -f /data/logs/app.log &
-```
+AuroraCore is designed for high-performance file monitoring. Proper configuration and usage patterns can significantly impact system performance, battery life, and resource utilization.
 
 ## 📁 FileWatcher Performance Optimization
 
@@ -126,24 +66,60 @@ std::thread processor([]() {
 });
 ```
 
+### Event Filtering and Debouncing
+
+```cpp
+// Implement debouncing to reduce event noise
+class DebouncedWatcher {
+private:
+    FileWatcherAPI::FileWatcher watcher_;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> last_events_;
+    std::mutex events_mutex_;
+    const std::chrono::milliseconds debounce_time_{1000}; // 1 second
+    
+public:
+    void add_watch(const std::string& path, std::function<void(const FileWatcherAPI::FileEvent&)> callback) {
+        watcher_.add_watch(path, [this, callback](const FileWatcherAPI::FileEvent& event) {
+            std::lock_guard<std::mutex> lock(events_mutex_);
+            
+            auto now = std::chrono::steady_clock::now();
+            auto key = event.path + "/" + event.filename;
+            
+            auto it = last_events_.find(key);
+            if (it == last_events_.end() || 
+                (now - it->second) > debounce_time_) {
+                last_events_[key] = now;
+                callback(event);
+            }
+        }, FileWatcherAPI::make_event_mask({
+            FileWatcherAPI::EventType::MODIFY,
+            FileWatcherAPI::EventType::CREATE,
+            FileWatcherAPI::EventType::DELETE
+        }));
+    }
+    
+    void start() { watcher_.start(); }
+    void stop() { watcher_.stop(); }
+};
+```
+
 ## ⚡ System-Level Optimizations
 
 ### CPU Affinity
 
 ```bash
 # Bind processes to specific CPU cores
-taskset -c 0,1 ./logger_daemon -f /data/logs/system.log
 taskset -c 2,3 ./filewatcher /data/config "process_config_change.sh"
 ```
 
 ### I/O Scheduling
 
 ```bash
-# Use appropriate I/O scheduler for logging workloads
+# Use appropriate I/O scheduler for file monitoring workloads
 echo deadline > /sys/block/sda/queue/scheduler
 
-# Set I/O priority for logger processes
-ionice -c 2 -n 4 ./logger_daemon -f /data/logs/app.log
+# Set I/O priority for filewatcher processes
+ionice -c 2 -n 4 ./filewatcher /data/config "handle_change.sh"
 ```
 
 ### Memory Management
@@ -152,8 +128,8 @@ ionice -c 2 -n 4 ./logger_daemon -f /data/logs/app.log
 # Configure swappiness for better memory management
 echo 10 > /proc/sys/vm/swappiness
 
-# Use memory-mapped files for large log files
-./logger_daemon -f /data/logs/large.log --use-mmap
+# Monitor memory usage of filewatcher
+watch -n 1 'ps -o pid,vsz,rss,comm -p $(pgrep filewatcher)'
 ```
 
 ## 📈 Performance Monitoring
@@ -161,32 +137,50 @@ echo 10 > /proc/sys/vm/swappiness
 ### Built-in Metrics
 
 ```cpp
-// Enable performance monitoring in logger
-config.enable_metrics = true;
-config.metrics_interval_ms = 30000;  // Report every 30 seconds
-
-LoggerAPI::init_logger(config);
-
-// Get performance statistics
-auto stats = LoggerAPI::get_performance_stats();
-std::cout << "Messages/sec: " << stats.messages_per_second << std::endl;
-std::cout << "Buffer usage: " << stats.buffer_usage_percent << "%" << std::endl;
+// Monitor FileWatcher performance
+class PerformanceMonitor {
+private:
+    std::atomic<uint64_t> events_processed_{0};
+    std::atomic<uint64_t> events_dropped_{0};
+    std::chrono::steady_clock::time_point start_time_;
+    
+public:
+    PerformanceMonitor() : start_time_(std::chrono::steady_clock::now()) {}
+    
+    void on_event_processed() {
+        events_processed_++;
+    }
+    
+    void on_event_dropped() {
+        events_dropped_++;
+    }
+    
+    void print_stats() {
+        auto now = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
+        
+        if (duration > 0) {
+            std::cout << "Events/sec: " << events_processed_ / duration << std::endl;
+            std::cout << "Drop rate: " << (events_dropped_ * 100.0) / (events_processed_ + events_dropped_) << "%" << std::endl;
+        }
+    }
+};
 ```
 
 ### System Monitoring
 
 ```bash
-# Monitor logger daemon performance
-top -p $(pgrep logger_daemon)
+# Monitor filewatcher performance
+top -p $(pgrep filewatcher)
 
 # Check file descriptor usage
-lsof -p $(pgrep logger_daemon) | wc -l
+lsof -p $(pgrep filewatcher) | wc -l
 
-# Monitor disk I/O
-iotop -p $(pgrep logger_daemon)
+# Monitor inotify usage
+find /proc/*/fd -lname anon_inode:inotify 2>/dev/null | wc -l
 
 # Check memory usage
-cat /proc/$(pgrep logger_daemon)/status | grep VmRSS
+cat /proc/$(pgrep filewatcher)/status | grep VmRSS
 ```
 
 ## 🔧 Troubleshooting Performance Issues
@@ -199,7 +193,7 @@ cat /proc/$(pgrep logger_daemon)/status | grep VmRSS
 # Check if too many events are being processed
 strace -p $(pgrep filewatcher) -e trace=inotify_add_watch,read
 
-# Reduce event frequency
+# Reduce event frequency with debouncing
 ./filewatcher -e modify /data/config "echo 'Config changed'" --debounce 1000
 ```
 
@@ -208,56 +202,135 @@ strace -p $(pgrep filewatcher) -e trace=inotify_add_watch,read
 ```bash
 # Monitor memory growth over time
 while true; do
-    ps -o pid,vsz,rss,comm -p $(pgrep logger_daemon)
+    ps -o pid,vsz,rss,comm -p $(pgrep filewatcher)
     sleep 60
 done
 
 # Use valgrind for detailed analysis
-valgrind --tool=memcheck --leak-check=full ./logger_daemon -f /tmp/test.log
+valgrind --tool=memcheck --leak-check=full ./filewatcher /tmp/test "echo 'changed'"
 ```
 
-#### Disk I/O Bottlenecks
+#### Too Many Open Files
 
 ```bash
-# Check disk write performance
-dd if=/dev/zero of=/data/logs/test bs=1M count=100 oflag=sync
+# Check current file descriptor limits
+ulimit -n
 
-# Use faster storage for logs
-mount -t tmpfs -o size=1G tmpfs /data/logs/temp
+# Increase limits if needed
+ulimit -n 65536
+
+# Check inotify watch count
+find /proc/*/fd -lname anon_inode:inotify 2>/dev/null | \
+  xargs -I {} ls -l {} 2>/dev/null | wc -l
+```
+
+#### Event Queue Overflow
+
+```bash
+# Monitor inotify queue
+watch -n 1 'cat /proc/sys/fs/inotify/max_queued_events'
+
+# Increase queue size if needed
+echo 32768 > /proc/sys/fs/inotify/max_queued_events
 ```
 
 ## 📋 Performance Benchmarks
 
-### Logger Performance
-
-| Configuration | Messages/sec | Memory Usage | CPU Usage |
-|---------------|--------------|--------------|----------|
-| Default | 10,000 | 50MB | 5% |
-| Optimized | 25,000 | 30MB | 3% |
-| High-throughput | 50,000 | 100MB | 8% |
-
 ### FileWatcher Performance
 
-| Watch Count | Events/sec | Memory Usage | CPU Usage |
-|-------------|------------|--------------|----------|
-| 100 files | 1,000 | 20MB | 2% |
-| 1,000 files | 5,000 | 50MB | 5% |
-| 10,000 files | 10,000 | 200MB | 15% |
+| Watch Count | Events/sec | Memory Usage | CPU Usage | Notes |
+|-------------|------------|--------------|-----------|-------|
+| 100 files | 1,000 | 20MB | 2% | Light monitoring |
+| 1,000 files | 5,000 | 50MB | 5% | Medium load |
+| 10,000 files | 10,000 | 200MB | 15% | Heavy monitoring |
+| 50,000 files | 15,000 | 500MB | 25% | Extreme load |
 
-## 🎯 Best Practices Summary
+### Event Type Performance Impact
 
-1. **Buffer Sizing**: Use larger buffers for high-frequency logging
-2. **Event Filtering**: Only monitor necessary file events
+| Event Types | Overhead | Recommendation |
+|-------------|----------|----------------|
+| MODIFY only | Low | Best for config monitoring |
+| CREATE + DELETE | Medium | Good for directory monitoring |
+| All events | High | Use only when necessary |
+| ACCESS events | Very High | Avoid in production |
+
+## 🎯 Optimization Strategies
+
+### 1. Selective Monitoring
+
+```cpp
+// Monitor only specific file types
+watcher.add_watch("/data/config", [](const FileWatcherAPI::FileEvent& event) {
+    // Filter by file extension
+    if (event.filename.ends_with(".conf") || 
+        event.filename.ends_with(".json")) {
+        handle_config_change(event);
+    }
+}, FileWatcherAPI::make_event_mask({
+    FileWatcherAPI::EventType::MODIFY
+}));
+```
+
+### 2. Hierarchical Watching
+
+```cpp
+// Watch parent directory instead of individual files
+// More efficient than watching 100 individual files
+watcher.add_watch("/data/app/configs", [](const FileWatcherAPI::FileEvent& event) {
+    // Handle all config changes in one callback
+    if (event.path.find("/configs/") != std::string::npos) {
+        reload_config(event.path + "/" + event.filename);
+    }
+}, mask);
+```
+
+### 3. Batch Processing
+
+```cpp
+// Collect events and process in batches
+class BatchProcessor {
+private:
+    std::vector<FileWatcherAPI::FileEvent> event_batch_;
+    std::mutex batch_mutex_;
+    std::thread processor_thread_;
+    
+public:
+    void add_event(const FileWatcherAPI::FileEvent& event) {
+        std::lock_guard<std::mutex> lock(batch_mutex_);
+        event_batch_.push_back(event);
+        
+        // Process batch when it reaches certain size
+        if (event_batch_.size() >= 50) {
+            process_batch();
+        }
+    }
+    
+private:
+    void process_batch() {
+        // Process all events together
+        for (const auto& event : event_batch_) {
+            handle_event(event);
+        }
+        event_batch_.clear();
+    }
+};
+```
+
+## 🔗 Best Practices Summary
+
+1. **Event Filtering**: Only monitor necessary file events
+2. **Debouncing**: Implement debouncing to reduce event noise
 3. **Batch Processing**: Group operations to reduce system calls
 4. **Resource Limits**: Set appropriate system limits for inotify
 5. **Background Processing**: Move heavy work out of callbacks
 6. **Monitoring**: Regularly check performance metrics
 7. **Testing**: Benchmark your specific use case
+8. **Selective Watching**: Monitor directories instead of individual files when possible
 
 ## 🔗 Related Documentation
 
-- [Logger API Reference](/api/logger-api)
 - [FileWatcher API Reference](/api/filewatcher-api)
 - [Command Line Tools](/api/cli-tools)
 - [Getting Started Guide](/guide/getting-started)
-- [FAQ](/guide/faq)
+- [System Tools Guide](/guide/system-tools)
+- [Building Guide](/guide/building)

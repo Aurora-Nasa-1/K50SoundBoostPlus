@@ -20,37 +20,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Make name
+      - name: BUILD
         run: |
-          #!/bin/bash
-          source build.sh
-          echo "BUILD FOR MODULE"
-          if [ "$Github_update_repo" = "" ]; then
-            echo "YOU NEED TO SET Github_update_repo MODID MODNAME CURRENT_TIME_VERSIONCODE"
-            echo "example: Aurora-Nasa-1/ModuleWebUI ModuleID ModuleName 240503"
-            exit 0
-          fi
-          sed -i "s/20240503/${CURRENT_TIME_VERSIONCODE}/g" src/pages/status.js
-          find src -name "status.js" -exec sed -i "s/Aurora-Nasa-1\/AMMF/${Github_update_repo}/g" {} \;
-          find src -name "*.js" -exec sed -i "s/AMMF/${MODID}/g" {} \;
-          sed -i "s/AMMF/${MODID}/g" index.html
-          find src/assets/translations -name "*.json" -exec sed -i "s/AMMF/${MODNAME}/g" {} \;
-          echo "已完成文本替换"
+          MODID=${{ github.event.repository.name }}
+          echo "MODID: $MODID"
+          . ./build.sh
           
-      - name: Build project
-        run: npm run build
-        env:
-          NODE_ENV: production
-
       - name: Check build size
         run: |
           echo "Build completed successfully"

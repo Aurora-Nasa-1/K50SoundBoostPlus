@@ -6,7 +6,6 @@
 
 ### 可用API库
 
-- **LoggerAPI** - 高性能日志记录库 (`loggerAPI/logger_api.hpp`)
 - **FileWatcherAPI** - 文件系统监控库 (`filewatcherAPI/filewatcher_api.hpp`)
 
 ### API特点
@@ -31,9 +30,6 @@ cd AuroraCore
 #### 方法二：下载头文件
 
 ```bash
-# 下载LoggerAPI
-wget https://raw.githubusercontent.com/APMMDEVS/AuroraCore/main/src/loggerAPI/logger_api.hpp
-
 # 下载FileWatcherAPI
 wget https://raw.githubusercontent.com/APMMDEVS/AuroraCore/main/src/filewatcherAPI/filewatcher_api.hpp
 ```
@@ -83,140 +79,12 @@ LOCAL_LDLIBS := -llog -pthread
 include $(BUILD_EXECUTABLE)
 ```
 
-## 📝 LoggerAPI使用指南
-
-### 基本使用
-
-```cpp
-#include "loggerAPI/logger_api.hpp"
-#include <iostream>
-
-int main() {
-    // 配置日志器
-    LoggerAPI::InternalLogger::Config config;
-    config.log_path = "/data/local/tmp/myapp.log";
-    config.max_file_size = 10 * 1024 * 1024; // 10MB
-    config.max_files = 5;
-    config.min_log_level = LoggerAPI::LogLevel::DEBUG;
-    config.flush_interval_ms = 1000;
-    
-    // 创建日志器实例
-    LoggerAPI::InternalLogger logger(config);
-    
-    // 记录不同级别的日志
-    logger.log(LoggerAPI::LogLevel::INFO, "应用程序启动");
-    logger.log(LoggerAPI::LogLevel::DEBUG, "调试信息");
-    logger.log(LoggerAPI::LogLevel::ERROR, "发生错误");
-    
-    // 强制刷新
-    logger.flush();
-    
-    // 停止日志器
-    logger.stop();
-    
-    return 0;
-}
-```
-
-### 全局API使用
-
-```cpp
-#include "loggerAPI/logger_api.hpp"
-
-int main() {
-    // 初始化全局日志器
-    LoggerAPI::InternalLogger::Config config;
-    config.log_path = "/data/local/tmp/global.log";
-    config.min_log_level = LoggerAPI::LogLevel::DEBUG;
-    
-    LoggerAPI::init_logger(config);
-    
-    // 使用全局函数记录日志
-    LoggerAPI::info("应用程序初始化完成");
-    LoggerAPI::debug("处理用户请求");
-    LoggerAPI::warn("内存使用率较高");
-    LoggerAPI::error("网络连接超时");
-    LoggerAPI::fatal("系统致命错误");
-    
-    // 清理
-    LoggerAPI::flush_logs();
-    LoggerAPI::shutdown_logger();
-    
-    return 0;
-}
-```
-
-### 高级配置
-
-```cpp
-#include "loggerAPI/logger_api.hpp"
-
-class MyApplication {
-private:
-    std::unique_ptr<LoggerAPI::InternalLogger> logger_;
-    
-public:
-    void initialize() {
-        LoggerAPI::InternalLogger::Config config;
-        
-        // 自定义日志格式
-        config.log_format = "[{timestamp}] {level} | {thread_id} | {message}";
-        
-        // 性能优化配置
-        config.buffer_size = 128 * 1024; // 128KB缓冲区
-        config.flush_interval_ms = 2000;  // 2秒刷新间隔
-        config.auto_flush = true;
-        
-        // 文件管理配置
-        config.log_path = "/data/local/tmp/myapp.log";
-        config.max_file_size = 50 * 1024 * 1024; // 50MB
-        config.max_files = 10;
-        
-        // 日志级别过滤
-        config.min_log_level = LoggerAPI::LogLevel::INFO;
-        
-        logger_ = std::make_unique<LoggerAPI::InternalLogger>(config);
-        
-        logger_->log(LoggerAPI::LogLevel::INFO, "应用程序初始化完成");
-    }
-    
-    void process_request(const std::string& request_id) {
-        logger_->log(LoggerAPI::LogLevel::DEBUG, 
-                    "开始处理请求: " + request_id);
-        
-        try {
-            // 处理业务逻辑
-            do_business_logic();
-            
-            logger_->log(LoggerAPI::LogLevel::INFO, 
-                        "请求处理成功: " + request_id);
-        } catch (const std::exception& e) {
-            logger_->log(LoggerAPI::LogLevel::ERROR, 
-                        "请求处理失败: " + request_id + ", 错误: " + e.what());
-        }
-    }
-    
-    void shutdown() {
-        if (logger_) {
-            logger_->log(LoggerAPI::LogLevel::INFO, "应用程序关闭");
-            logger_->stop();
-        }
-    }
-    
-private:
-    void do_business_logic() {
-        // 业务逻辑实现
-    }
-};
-```
-
 ## 👁️ FileWatcherAPI使用指南
 
 ### 基本文件监控
 
 ```cpp
 #include "filewatcherAPI/filewatcher_api.hpp"
-#include "loggerAPI/logger_api.hpp"
 #include <iostream>
 #include <signal.h>
 
@@ -230,11 +98,6 @@ int main() {
     // 设置信号处理
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
-    
-    // 初始化日志
-    LoggerAPI::InternalLogger::Config log_config;
-    log_config.log_path = "/data/local/tmp/watcher.log";
-    LoggerAPI::init_logger(log_config);
     
     // 创建文件监控器
     FileWatcherAPI::FileWatcher watcher;
@@ -250,7 +113,6 @@ int main() {
                 message += "/" + event.filename;
             }
             
-            LoggerAPI::info(message);
             std::cout << message << std::endl;
         },
         FileWatcherAPI::make_event_mask({
@@ -262,7 +124,7 @@ int main() {
     
     // 启动监控
     watcher.start();
-    LoggerAPI::info("文件监控已启动");
+    std::cout << "文件监控已启动" << std::endl;
     
     // 主循环
     while (running) {
@@ -271,9 +133,8 @@ int main() {
     
     // 停止监控
     watcher.stop();
-    LoggerAPI::info("文件监控已停止");
+    std::cout << "文件监控已停止" << std::endl;
     
-    LoggerAPI::shutdown_logger();
     return 0;
 }
 ```
@@ -282,9 +143,9 @@ int main() {
 
 ```cpp
 #include "filewatcherAPI/filewatcher_api.hpp"
-#include "loggerAPI/logger_api.hpp"
 #include <unordered_map>
 #include <chrono>
+#include <iostream>
 
 class ConfigurationManager {
 private:
@@ -317,12 +178,12 @@ public:
         );
         
         watcher_.start();
-        LoggerAPI::info("配置管理器初始化完成");
+        std::cout << "配置管理器初始化完成" << std::endl;
     }
     
     void shutdown() {
         watcher_.stop();
-        LoggerAPI::info("配置管理器已关闭");
+        std::cout << "配置管理器已关闭" << std::endl;
     }
     
 private:
@@ -344,7 +205,7 @@ private:
         
         last_reload_[full_path] = now;
         
-        LoggerAPI::info("配置文件变更: " + full_path);
+        std::cout << "配置文件变更: " << full_path << std::endl;
         
         // 重载配置
         if (event.filename.ends_with(".conf")) {
@@ -358,10 +219,10 @@ private:
         std::string plugin_path = event.path + "/" + event.filename;
         
         if (event.type == FileWatcherAPI::EventType::CREATE) {
-            LoggerAPI::info("检测到新插件: " + plugin_path);
+            std::cout << "检测到新插件: " << plugin_path << std::endl;
             load_plugin(plugin_path);
         } else if (event.type == FileWatcherAPI::EventType::DELETE) {
-            LoggerAPI::info("插件已删除: " + plugin_path);
+            std::cout << "插件已删除: " << plugin_path << std::endl;
             unload_plugin(plugin_path);
         }
     }
@@ -369,24 +230,103 @@ private:
     void reload_configuration(const std::string& config_path) {
         try {
             // 实现配置重载逻辑
-            LoggerAPI::info("配置重载成功: " + config_path);
+            std::cout << "配置重载成功: " << config_path << std::endl;
         } catch (const std::exception& e) {
-            LoggerAPI::error("配置重载失败: " + config_path + ", 错误: " + e.what());
+            std::cout << "配置重载失败: " << config_path << ", 错误: " << e.what() << std::endl;
         }
     }
     
     void reload_json_config(const std::string& json_path) {
         // 实现JSON配置重载
+        std::cout << "JSON配置重载: " << json_path << std::endl;
     }
     
     void load_plugin(const std::string& plugin_path) {
         // 实现插件加载
+        std::cout << "加载插件: " << plugin_path << std::endl;
     }
     
     void unload_plugin(const std::string& plugin_path) {
         // 实现插件卸载
+        std::cout << "卸载插件: " << plugin_path << std::endl;
     }
 };
+```
+
+### 多路径监控示例
+
+```cpp
+#include "filewatcherAPI/filewatcher_api.hpp"
+#include <vector>
+#include <string>
+
+class MultiPathWatcher {
+private:
+    FileWatcherAPI::FileWatcher watcher_;
+    std::vector<std::string> watch_paths_;
+    
+public:
+    void add_paths(const std::vector<std::string>& paths) {
+        for (const auto& path : paths) {
+            watch_paths_.push_back(path);
+            
+            watcher_.add_watch(path,
+                [this, path](const FileWatcherAPI::FileEvent& event) {
+                    handle_event(path, event);
+                },
+                FileWatcherAPI::make_event_mask({
+                    FileWatcherAPI::EventType::CREATE,
+                    FileWatcherAPI::EventType::MODIFY,
+                    FileWatcherAPI::EventType::DELETE,
+                    FileWatcherAPI::EventType::MOVE
+                })
+            );
+        }
+    }
+    
+    void start_monitoring() {
+        watcher_.start();
+        std::cout << "开始监控 " << watch_paths_.size() << " 个路径" << std::endl;
+    }
+    
+    void stop_monitoring() {
+        watcher_.stop();
+        std::cout << "停止监控" << std::endl;
+    }
+    
+private:
+    void handle_event(const std::string& base_path, const FileWatcherAPI::FileEvent& event) {
+        std::cout << "[" << base_path << "] "
+                  << FileWatcherAPI::event_type_to_string(event.type)
+                  << ": " << event.path;
+        
+        if (!event.filename.empty()) {
+            std::cout << "/" << event.filename;
+        }
+        
+        std::cout << std::endl;
+    }
+};
+
+int main() {
+    MultiPathWatcher watcher;
+    
+    // 添加多个监控路径
+    watcher.add_paths({
+        "/data/local/tmp/logs",
+        "/data/local/tmp/config",
+        "/data/local/tmp/cache"
+    });
+    
+    watcher.start_monitoring();
+    
+    // 运行一段时间
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+    
+    watcher.stop_monitoring();
+    
+    return 0;
+}
 ```
 
 ## 🔧 构建配置
@@ -425,17 +365,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3")
 
 ## 📊 性能优化建议
 
-### LoggerAPI优化
-
-```cpp
-// 高性能配置
-LoggerAPI::InternalLogger::Config config;
-config.buffer_size = 256 * 1024;      // 更大的缓冲区
-config.flush_interval_ms = 5000;       // 较长的刷新间隔
-config.auto_flush = true;              // 启用自动刷新
-config.min_log_level = LoggerAPI::LogLevel::INFO; // 过滤调试日志
-```
-
 ### FileWatcherAPI优化
 
 ```cpp
@@ -451,6 +380,82 @@ watcher.add_watch(path, [](const FileWatcherAPI::FileEvent& event) {
     // 将事件放入队列，异步处理
     event_queue.push(event);
 }, events);
+```
+
+### 内存和CPU优化
+
+```cpp
+class OptimizedWatcher {
+private:
+    FileWatcherAPI::FileWatcher watcher_;
+    std::queue<FileWatcherAPI::FileEvent> event_queue_;
+    std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;
+    std::thread processor_thread_;
+    std::atomic<bool> running_{true};
+    
+public:
+    void start() {
+        // 启动事件处理线程
+        processor_thread_ = std::thread([this]() {
+            process_events();
+        });
+        
+        // 配置监控器
+        watcher_.add_watch("/data/local/tmp",
+            [this](const FileWatcherAPI::FileEvent& event) {
+                // 快速入队，避免阻塞监控线程
+                {
+                    std::lock_guard<std::mutex> lock(queue_mutex_);
+                    event_queue_.push(event);
+                }
+                queue_cv_.notify_one();
+            },
+            FileWatcherAPI::make_event_mask({
+                FileWatcherAPI::EventType::MODIFY
+            })
+        );
+        
+        watcher_.start();
+    }
+    
+    void stop() {
+        running_ = false;
+        queue_cv_.notify_all();
+        
+        if (processor_thread_.joinable()) {
+            processor_thread_.join();
+        }
+        
+        watcher_.stop();
+    }
+    
+private:
+    void process_events() {
+        while (running_) {
+            std::unique_lock<std::mutex> lock(queue_mutex_);
+            queue_cv_.wait(lock, [this]() {
+                return !event_queue_.empty() || !running_;
+            });
+            
+            while (!event_queue_.empty()) {
+                auto event = event_queue_.front();
+                event_queue_.pop();
+                lock.unlock();
+                
+                // 处理事件（可能耗时的操作）
+                handle_event_async(event);
+                
+                lock.lock();
+            }
+        }
+    }
+    
+    void handle_event_async(const FileWatcherAPI::FileEvent& event) {
+        // 异步处理事件，不阻塞监控
+        std::cout << "异步处理: " << event.path << std::endl;
+    }
+};
 ```
 
 ## 🔗 相关资源

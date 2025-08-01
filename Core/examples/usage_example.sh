@@ -1,52 +1,17 @@
 #!/bin/bash
 
 # AuroraCore Usage Examples
-# This script demonstrates how to use the logger and filewatcher tools
+# This script demonstrates how to use the filewatcher tool
 
-echo "=== AuroraCore Usage Examples ==="
+echo "=== AuroraCore FileWatcher Usage Examples ==="
 
 # Build the project first
 echo "Building project..."
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-echo "\n1. Logger System Example"
-echo "========================"
-
-# Start logger daemon in background
-echo "Starting logger daemon..."
-./build/src/logger/logger_daemon \
-    -f /tmp/example.log \
-    -s 1048576 \
-    -n 3 \
-    -p /tmp/example_logger &
-
-LOGGER_PID=$!
-echo "Logger daemon started with PID: $LOGGER_PID"
-
-# Wait for daemon to initialize
-sleep 1
-
-# Send some test logs
-echo "Sending test logs..."
-./build/src/logger/logger_client -p /tmp/example_logger "Application started"
-./build/src/logger/logger_client -p /tmp/example_logger "Processing user request"
-./build/src/logger/logger_client -p /tmp/example_logger "Database connection established"
-./build/src/logger/logger_client -p /tmp/example_logger "Task completed successfully"
-
-# Wait for logs to be written
-sleep 2
-
-echo "\nLog file contents:"
-cat /tmp/example.log
-
-# Stop logger daemon
-echo "\nStopping logger daemon..."
-kill $LOGGER_PID
-wait $LOGGER_PID 2>/dev/null
-
-echo "\n2. File Watcher Example"
-echo "======================="
+echo "\n1. Basic File Watcher Example"
+echo "============================="
 
 # Create test directory
 mkdir -p /tmp/watch_test
@@ -56,7 +21,7 @@ echo "Starting file watcher for /tmp/watch_test..."
 ./build/src/filewatcher/filewatcher \
     -e create,modify,delete \
     /tmp/watch_test \
-    "echo '[FileWatcher] Event detected: $FILE'" &
+    "echo '[FileWatcher] Event detected: \$FILE'" &
 
 WATCHER_PID=$!
 echo "File watcher started with PID: $WATCHER_PID"
@@ -88,47 +53,98 @@ echo "\nStopping file watcher..."
 kill $WATCHER_PID
 wait $WATCHER_PID 2>/dev/null
 
-echo "\n3. Combined Example: Log File Monitoring"
-echo "========================================"
+echo "\n2. Recursive Directory Monitoring"
+echo "=================================="
 
-# Start logger daemon
-echo "Starting logger daemon..."
-./build/src/logger/logger_daemon \
-    -f /tmp/monitored.log \
-    -p /tmp/monitor_logger &
+# Create nested directory structure
+mkdir -p /tmp/watch_recursive/subdir1/subdir2
 
-LOGGER_PID=$!
-
-# Start file watcher to monitor the log file
-echo "Starting file watcher to monitor log file..."
+# Start recursive file watcher
+echo "Starting recursive file watcher..."
 ./build/src/filewatcher/filewatcher \
-    -e modify \
-    /tmp/monitored.log \
-    "echo '[Monitor] Log file updated: $FILE'" &
+    -r \
+    -e create,modify,delete \
+    /tmp/watch_recursive \
+    "echo '[Recursive] Event: \$EVENT on \$FILE'" &
 
 WATCHER_PID=$!
+echo "Recursive file watcher started with PID: $WATCHER_PID"
 
-# Wait for services to initialize
+# Wait for watcher to initialize
 sleep 1
 
-# Send logs and watch for file changes
-echo "\nSending logs and monitoring changes..."
-for i in {1..5}; do
-    ./build/src/logger/logger_client -p /tmp/monitor_logger "Log entry #$i"
-    sleep 1
-done
+# Test operations in different subdirectories
+echo "\nTesting recursive monitoring..."
+echo "Creating files in different directories..."
+echo "Root file" > /tmp/watch_recursive/root.txt
+echo "Subdir1 file" > /tmp/watch_recursive/subdir1/file1.txt
+echo "Subdir2 file" > /tmp/watch_recursive/subdir1/subdir2/file2.txt
+sleep 2
+
+echo "Modifying files..."
+echo "Modified" >> /tmp/watch_recursive/root.txt
+echo "Modified" >> /tmp/watch_recursive/subdir1/file1.txt
+sleep 2
+
+echo "Deleting files..."
+rm /tmp/watch_recursive/root.txt
+rm /tmp/watch_recursive/subdir1/file1.txt
+rm /tmp/watch_recursive/subdir1/subdir2/file2.txt
+sleep 1
+
+# Stop recursive watcher
+echo "\nStopping recursive file watcher..."
+kill $WATCHER_PID
+wait $WATCHER_PID 2>/dev/null
+
+echo "\n3. Configuration File Monitoring"
+echo "================================="
+
+# Create config directory
+mkdir -p /tmp/config_watch
+
+# Create initial config file
+cat > /tmp/config_watch/app.conf << EOF
+app_name=TestApp
+log_level=INFO
+max_connections=100
+EOF
+
+# Start config file watcher
+echo "Starting configuration file watcher..."
+./build/src/filewatcher/filewatcher \
+    -e modify \
+    /tmp/config_watch/app.conf \
+    "echo '[Config] Configuration file changed: \$FILE - reloading application...'" &
+
+WATCHER_PID=$!
+echo "Config watcher started with PID: $WATCHER_PID"
+
+# Wait for watcher to initialize
+sleep 1
+
+# Simulate config changes
+echo "\nSimulating configuration changes..."
+echo "Adding debug mode..."
+echo "debug_mode=true" >> /tmp/config_watch/app.conf
+sleep 2
+
+echo "Changing log level..."
+sed -i 's/log_level=INFO/log_level=DEBUG/' /tmp/config_watch/app.conf
+sleep 2
+
+echo "Adding new setting..."
+echo "timeout=30" >> /tmp/config_watch/app.conf
+sleep 2
+
+# Stop config watcher
+echo "\nStopping config file watcher..."
+kill $WATCHER_PID
+wait $WATCHER_PID 2>/dev/null
 
 # Cleanup
 echo "\nCleaning up..."
-kill $LOGGER_PID $WATCHER_PID
-wait $LOGGER_PID $WATCHER_PID 2>/dev/null
+rm -rf /tmp/watch_test /tmp/watch_recursive /tmp/config_watch
 
-echo "\nFinal log file contents:"
-cat /tmp/monitored.log
-
-# Cleanup test files
-rm -f /tmp/example.log* /tmp/monitored.log* /tmp/example_logger /tmp/monitor_logger
-rmdir /tmp/watch_test 2>/dev/null
-
-echo "\n=== Examples completed ==="
+echo "\n=== FileWatcher Examples completed ==="
 echo "Check the README.md for more detailed usage information."

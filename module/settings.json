@@ -16,7 +16,7 @@
 
     "Aurora_webui_build": true,
     "webui": {
-      "webui_overlay_src_path": "webroot",
+      "webui_overlay_src_path": "webui_overlay",
       "webui_build_output_path": "webroot"
     },
 
@@ -35,7 +35,7 @@
     },
 
     "version_sync": {
-      "sync_with_git_tag": true,
+      "sync_with_git_tag": false,
       "tag_prefix": "v"
     },
 
@@ -43,6 +43,15 @@
     "build_script": {
       "script_path": "custom_build_script.sh"
     },
-    "use_tools_form": "build"
+    
+    "use_tools_form": "build",
+    
+    "advanced": {
+      "enable_debug_logging": false,
+      "strip_binaries": true,
+      "compress_resources": true,
+      "validate_config": true,
+      "skip_cpp_build": true
+    }
   }
 }
