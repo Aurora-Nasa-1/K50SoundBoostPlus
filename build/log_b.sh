@@ -295,11 +295,5 @@ stop_logger() {
     return 0
 }
 
-# 导出主要函数
-export -f log log_error log_warn log_info log_debug
-export -f batch_log flush_logs clean_logs stop_logger
-export -f set_log_file set_log_level set_buffer_size set_buffer_enabled
-export -f log_stats init_logger
-
 # 自动初始化
 init_logger
